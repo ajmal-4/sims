@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Supplier Home</title>
+</head>
+<body>
+    <h1>
+        Home
+        <br>
+        <br>
+        Supplier ID - {{ user_id }}
+    </h1>
+
+    <!-- Display Supplier Name -->
+    <h2>Welcome, {{ user_name }}</h2>
+
+    <!-- Show all the clients -->
+    <h2>Clients</h2>
+    {% if clients %}
+        <ul>
+            {% for client in clients %}
+                <li>
+                    <strong>{{ client.name }}</strong> 
+                    (Client ID: {{ client.client_id }}, Place: {{ client.place }}, Route No: {{ client.route_no }}, Debt : {{ client.debt }})
+                </li>
+            {% endfor %}
+        </ul>
+    {% else %}
+        <p>No clients available for this supplier.</p>
+    {% endif %}
+
+</body>
+</html>
