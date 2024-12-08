@@ -4,32 +4,341 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Supplier Home</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            display: flex;
+        }
+
+        .sidebar {
+            width: 250px;
+            background-color: #333;
+            color: white;
+            height: 100vh;
+            position: fixed;
+            overflow-y: auto;
+        }
+
+        .sidebar h2 {
+            text-align: center;
+            padding: 20px 0;
+            border-bottom: 1px solid #555;
+        }
+
+        .sidebar ul {
+            list-style-type: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .sidebar li {
+            padding: 15px 20px;
+            cursor: pointer;
+        }
+
+        .sidebar li:hover {
+            background-color: #575757;
+        }
+
+        .content {
+            margin-left: 250px;
+            padding: 20px;
+            flex: 1;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .visible {
+            display: block;
+        }
+
+        /* client list */
+        .client-list {
+            margin-top: 20px;
+            padding: 10px;
+            background-color: #f9f9f9;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.1);
+            max-height: 300px; /* Adjust as per your need */
+            overflow-y: auto; /* Add scroll for long lists */
+        }
+
+        .client-list ul {
+            list-style-type: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .client-list li {
+            padding: 10px;
+            border-bottom: 1px solid #ddd;
+            font-size: 16px;
+            color: #333;
+            line-height: 1.5;
+        }
+
+        .client-list li strong {
+            color: #000;
+            font-weight: bold;
+        }
+
+        .client-list li:last-child {
+            border-bottom: none; /* Remove border from the last item */
+        }
+
+        .client-list li:hover {
+            background-color: #f1f1f1;
+            cursor: pointer;
+        }
+
+        /* Modal styles */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0, 0, 0, 0.4);
+        }
+
+        .modal-content {
+            background-color: #fff;
+            margin: 10% auto;
+            padding: 20px;
+            border: 1px solid #888;
+            width: 50%;
+            border-radius: 8px;
+            box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.2);
+        }
+
+        .modal-header {
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 15px;
+        }
+
+        .close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .close:hover,
+        .close:focus {
+            color: #000;
+            text-decoration: none;
+        }
+
+        button {
+            cursor: pointer;
+            padding: 10px 15px;
+            background-color: #333;
+            color: white;
+            border: none;
+            border-radius: 5px;
+        }
+
+        button:hover {
+            background-color: #575757;
+        }
+    </style>
 </head>
 <body>
-    <h1>
-        Home
-        <br>
-        <br>
-        Supplier ID - {{ user_id }}
-    </h1>
-
-    <!-- Display Supplier Name -->
-    <h2>Welcome, {{ user_name }}</h2>
-
-    <!-- Show all the clients -->
-    <h2>Clients</h2>
-    {% if clients %}
+    <div class="sidebar">
+        <h2>Navigation</h2>
         <ul>
-            {% for client in clients %}
-                <li>
-                    <strong>{{ client.name }}</strong> 
-                    (Client ID: {{ client.client_id }}, Place: {{ client.place }}, Route No: {{ client.route_no }}, Debt : {{ client.debt }})
-                </li>
-            {% endfor %}
+            <li onclick="showSection('daily-route')">Daily Route</li>
+            <li onclick="showSection('clients')">Clients</li>
+            <li onclick="showSection('sales')">Sales</li>
+            <li onclick="showSection('all-routes')">Routes</li>
         </ul>
-    {% else %}
-        <p>No clients available for this supplier.</p>
-    {% endif %}
+    </div>
 
+    <div class="content">
+        <!-- Daily Route -->
+        <div id="daily-route" class="visible">
+            <h2>Daily Route Section</h2>
+
+            <button onclick="openDailyRouteModal()">Select Route</button>
+            <div id="dailyRouteModal" class="modal">
+                <div class="modal-content">
+                    <span class="close" onclick="closeDailyRouteModal()">&times;</span>
+                    <div class="modal-header">Select date and daily route</div>
+                    <form method="POST" action="{{ url_for('select_route', user_id=user_id) }}">
+                        <label for="date">Date:</label>
+                        <input type="date" id="date" name="date" value="{{ selected_date }}" required>
+                        
+                        <label for="routes">Select Routes:</label>
+                        <select id="routes" name="routes" multiple size="5" required>
+                            {% for route in routes %}
+                                <option value="{{ route.route_no }}" {% if route.route_no in selected_routes %}selected{% endif %}>
+                                    Route {{ route.route_no }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                        <p>Hold down the Ctrl (Windows) / Command (Mac) key to select multiple routes.</p>
+                        <button type="submit">Show Clients</button>
+                    </form>
+                </div>
+            </div>
+
+            
+        
+            <h3>Clients for Routes {{ selected_routes | join(', ') or 'N/A' }} on {{ selected_date }}</h3>
+            {% if filtered_clients %}
+                <div class="client-list">
+                    <ul>
+                        {% for client in filtered_clients %}
+                            <li>
+                                <strong>{{ client.name }}</strong> 
+                                (Place: {{ client.place }}, Debt: {{ client.debt }})
+                            </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            {% else %}
+                <p>No clients available for the selected routes and date.</p>
+            {% endif %}
+        </div>
+
+        <!-- Clients Section -->
+        <div id="clients" class="hidden">
+            <h2>Clients</h2>
+            <button onclick="openModal()">Add Client</button>
+
+            <!-- Add Client Modal -->
+            <div id="clientModal" class="modal">
+                <div class="modal-content">
+                    <span class="close" onclick="closeModal()">&times;</span>
+                    <div class="modal-header">Add New Client</div>
+                    <form action="{{ url_for('add_client', user_id=user_id) }}" method="POST">
+                        <label for="client_name">Client Name:</label>
+                        <input type="text" id="client_name" name="client_name" required><br><br>
+
+                        <label for="client_place">Client Place:</label>
+                        <input type="text" id="client_place" name="client_place" required><br><br>
+
+                        <label for="route_no">Route No:</label>
+                        <input type="text" id="route_no" name="route_no" required><br><br>
+
+                        <label for="status">Status:</label>
+                        <input type="text" id="status" name="status"><br><br>
+
+                        <label for="debt">Debt (optional):</label>
+                        <input type="text" id="debt" name="debt"><br><br>
+
+                        <button type="submit">Add Client</button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Clients List -->
+            <div class="client-list">
+                {% if clients %}
+                <ul>
+                    {% for client in clients %}
+                        <li>
+                            <strong>{{ client.name }}</strong> 
+                            (Client ID: {{ client.client_id }}, Place: {{ client.place }}, Route No: {{ client.route_no }}, Debt : {{ client.debt }})
+                        </li>
+                    {% endfor %}
+                </ul>
+                {% else %}
+                    <p>No clients available for this supplier.</p>
+                {% endif %}
+            </div>
+            
+        </div>
+
+        <!-- Routes Section -->
+        <div id="all-routes" class="hidden">
+            <h2>Routes</h2>
+            {% if routes %}
+                <ul>
+                    {% for route in routes %}
+                        <li>
+                            <strong>{{ route.route_no }}</strong>
+                        </li>
+                        <div class="client-list">
+                            {% for client in clients %}
+                            {% if client.route_no == route.route_no %}
+                                <li>
+                                    <strong>{{ client.name }}</strong> 
+                                    (Client ID: {{ client.client_id }}, Place: {{ client.place }}, Route No: {{ client.route_no }}, Debt : {{ client.debt }})
+                                </li>
+                            {% endif %}
+                            {% endfor %}
+                        </div>
+                    {% endfor %}
+                </ul>
+            {% else %}
+                <p>No routes available for the supplier</p>
+            {% endif %}
+        </div>
+
+        <!-- Sales Section -->
+        <div id="sales" class="hidden">
+            <h2>Sales Section</h2>
+        </div>
+
+    </div>
+
+    <script>
+        function showSection(sectionId) {
+            // Hide all sections
+            document.querySelectorAll('.content > div').forEach(section => {
+                section.classList.add('hidden');
+                section.classList.remove('visible');
+            });
+
+            // Show the selected section
+            const section = document.getElementById(sectionId);
+            if (section) {
+                section.classList.add('visible');
+                section.classList.remove('hidden');
+            }
+        }
+
+        function openModal() {
+            document.getElementById("clientModal").style.display = "block";
+        }
+
+        function closeModal() {
+            document.getElementById("clientModal").style.display = "none";
+        }
+
+        // Close modal if clicked outside of it
+        window.onclick = function(event) {
+            const modal = document.getElementById("clientModal");
+            if (event.target === modal) {
+                modal.style.display = "none";
+            }
+        }
+
+        function openDailyRouteModal() {
+            document.getElementById("dailyRouteModal").style.display = "block";
+        }
+
+        function closeDailyRouteModal() {
+            document.getElementById("dailyRouteModal").style.display = "none";
+        }
+
+        // Close modal if clicked outside of it
+        window.onclick = function(event) {
+            const modal = document.getElementById("dailyRouteModal");
+            if (event.target === modal) {
+                modal.style.display = "none";
+            }
+        }
+    </script>
 </body>
 </html>
