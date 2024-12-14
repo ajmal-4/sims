@@ -26,6 +26,11 @@ def define_routes(app):
         def add_client(user_id):
             return services.add_client(user_id)
         
+        # Supplier Add Route
+        @app.route('/supplier/<int:user_id>/add_route', methods=['POST'])
+        def add_route(user_id):
+            return services.add_route(user_id)
+        
         # Supplier Sales deals
         @app.route('/supplier/<int:user_id>/sales', methods=['GET','POST'])
         def sales(user_id):
@@ -36,6 +41,7 @@ def define_routes(app):
         def daily_route(user_id):
             return services.daily_route(user_id)
         
+        # Supplier - select route in daily route section
         @app.route('/supplier/<int:user_id>/daily_route/select_route', methods=['GET','POST'])
         def select_route(user_id):
             return services.select_route(user_id)

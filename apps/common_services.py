@@ -142,8 +142,18 @@ class CommonServices:
     # ----------------------------------- #
 
     def add_client_to_db(self, client_data):
+        """ Adds new client to the database """
         try:
             self.clients.insert_one(client_data)
+            return True
+        except Exception as e:
+            print(f"Exception in add_client_to_db : {str(e)}")
+            return False
+    
+    def add_route_to_db(self, route_data):
+        """ Adds new supplier route to the database """
+        try:
+            self.routes.insert_one(route_data)
             return True
         except Exception as e:
             print(f"Exception in add_client_to_db : {str(e)}")

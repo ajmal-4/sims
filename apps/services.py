@@ -92,6 +92,31 @@ class Services:
         except Exception as e:
             print(f"Exception in add_client : {str(e)}")
     
+    def add_route(self, user_id):
+        try:
+            if request.method == 'POST':
+                supplier = str(user_id)
+                route_no = request.form.get('route_no')
+
+                route_data = {
+                    "supplier":supplier,
+                    "route_no":route_no,
+                    "clients":[]
+                }
+
+                # Add client to MongoDB
+                success = self.common_service.add_route_to_db(route_data)
+
+                # Redirect or return an error message based on success
+                if success:
+                    # return "Hooraayy!! success!!"
+                    return redirect(url_for('supplier_home', user_id=user_id))
+                else:
+                    return "Error adding client", 500
+
+        except Exception as e:
+            pass
+    
     def handle_sales(self, user_id):
         try:
             pass
