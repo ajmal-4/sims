@@ -6,6 +6,7 @@ class CommonServices:
         self.clients = db.get_collection('clients')
         self.routes = db.get_collection('routes')
         self.products = db.get_collection('products')
+        self.sales = db.get_collection('sales')
 
     # For authenticating the user - returns the user_type if the user is valid else returns None
     def authenticate_user(self, username, password):
@@ -32,8 +33,12 @@ class CommonServices:
     # ----------------------------------- #
     #               Retrievals            #
     # ----------------------------------- #
+
+
+    # # # Routes # # #
     
     def get_all_routes(self):
+        """ Retrieves all routes from the database """
         """ Each route will have unique route_no and clients """
         try:
             
@@ -60,9 +65,9 @@ class CommonServices:
             # supplier_routes = [
             #     route for route in all_routes if route.get('supplier') == str(supplier_id)
             # ] 
-            self.get_all_routes()
             supplier_routes = list(self.routes.find({"supplier": str(supplier_id)}))
             print("supplier_routes : ",supplier_routes)
+
             return supplier_routes
         
         except Exception as e:
@@ -70,9 +75,11 @@ class CommonServices:
             return None
 
     
-    # Dummy clients - Need to replace with actual clients from database
+    # # # Clients # # #
+
     def all_clients(self):
         try:
+            """ Retrieves all clients from the database """
             """ Each client will have unique client_id, name, place, route_no and the supplier """
 
             # clients = [
@@ -89,6 +96,7 @@ class CommonServices:
     
     # Get the list of all clients of the supplier
     def get_supplier_clients(self, supplier_id):
+        """ Get the list of all clients of the supplier """
         try:
 
             # Get all clients
@@ -105,7 +113,17 @@ class CommonServices:
             print(f"Exception in get_supplier_clients : {str(e)}")
             return None
     
+    def get_clients_by_routes(self, user_id, selected_routes):
+        try:
+            return list(self.clients.find({"supplier": str(user_id), "route_no": {"$in": selected_routes}}))
+        except Exception as e:
+            pass
+        
+    
+    # # # Products # # #
+    
     def get_all_products(self):
+        """ Retrieves all products from the database """
         try:
 
             # products = [
@@ -121,6 +139,7 @@ class CommonServices:
             return None
     
     def get_supplier_products(self, supplier_id):
+        """ Retrieves all products of the supplier from the database """
         try:
             
             all_products = self.get_all_products()
@@ -130,11 +149,18 @@ class CommonServices:
             print(f"Exception in get_supplier_products : {str(e)}")
             return None
     
-    def get_clients_by_routes(self, user_id, selected_routes):
+    
+    # # # Sales # # #
+    
+    def get_sales_list(self, supplier_id):
         try:
-            return list(self.clients.find({"supplier": str(user_id), "route_no": {"$in": selected_routes}}))
+
+            all_sales_lists = list(self.sales.find())
+            return all_sales_lists
+
         except Exception as e:
-            pass
+            print(f"Exception in get_sales_list : {str(e)}")
+            return None
     
 
     # ----------------------------------- #
@@ -158,3 +184,12 @@ class CommonServices:
         except Exception as e:
             print(f"Exception in add_client_to_db : {str(e)}")
             return False
+    
+    def add_product_to_db(self, product_data):
+        try:
+            self.products.insert_one(product_data)
+            return True
+        except Exception as e:
+            print(f"Exception in add_product_to_db : {str(e)}")
+            return False
+

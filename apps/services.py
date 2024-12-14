@@ -43,13 +43,17 @@ class Services:
             routes = self.common_service.get_supplier_routes(user_id)
             clients = self.common_service.get_supplier_clients(user_id)
             products = self.common_service.get_supplier_products(user_id)
+            sales = self.common_service.get_sales_list(user_id)
+
+            print("products : ",products)
 
             return render_template('supplier_home.html', 
                                    user_id=user_id, 
                                    user_name=session.get('user_name'), 
                                    clients=clients, 
                                    products=products, 
-                                   routes=routes
+                                   routes=routes,
+                                   sales = sales
                                 )
         except Exception as e:
             print(f"Exception in supplier_home : {str(e)}")
@@ -115,7 +119,33 @@ class Services:
                     return "Error adding client", 500
 
         except Exception as e:
-            pass
+            print(f"Exception in add_route : {str(e)}")
+
+    def add_product(self, user_id):
+        try:
+            if request.method == 'POST':
+
+                product_id = request.form.get('product_id')
+                product_name = request.form.get('product_name')
+                product_price = request.form.get('product_price')
+
+                product_data = {
+                    "product_id":product_id,
+                    "product_name":product_name,
+                    "product_price":product_price
+                }
+
+                success = self.common_service.add_product_to_db(product_data)
+
+                # Redirect or return an error message based on success
+                if success:
+                    # return "Hooraayy!! success!!"
+                    return redirect(url_for('supplier_home', user_id=user_id))
+                else:
+                    return "Error adding product", 500
+                
+        except Exception as e:
+            print(f"Exception in add_product : {str(e)}")
     
     def handle_sales(self, user_id):
         try:

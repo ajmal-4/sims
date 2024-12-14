@@ -31,6 +31,10 @@ def define_routes(app):
         def add_route(user_id):
             return services.add_route(user_id)
         
+        @app.route('/supplier/<int:user_id>/add_product', methods=['POST'])
+        def add_product(user_id):
+            return services.add_product(user_id)
+        
         # Supplier Sales deals
         @app.route('/supplier/<int:user_id>/sales', methods=['GET','POST'])
         def sales(user_id):

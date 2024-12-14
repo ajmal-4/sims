@@ -160,6 +160,7 @@
             <li onclick="showSection('clients')">Clients</li>
             <li onclick="showSection('sales')">Sales</li>
             <li onclick="showSection('all-routes')">Routes</li>
+            <li onclick="showSection('all-products')">Products</li>
         </ul>
     </div>
 
@@ -263,7 +264,7 @@
         <div id="all-routes" class="hidden">
             <h2>Routes</h2>
             <button onclick="openRouteModal()">Add Route</button>
-            <!-- Add Client Modal -->
+            <!-- Add Route Modal -->
             <div id="routeModal" class="modal">
                 <div class="modal-content">
                     <span class="close" onclick="closeModal()">&times;</span>
@@ -305,6 +306,49 @@
         <!-- Sales Section -->
         <div id="sales" class="hidden">
             <h2>Sales Section</h2>
+        </div>
+
+        <!-- Products Section -->
+        <div id="all-products" class="hidden">
+            <h2>Products Section</h2>
+
+            <button onclick="openProductModal()">Add Product</button>
+            <!-- Add Product Modal -->
+            <div id="productModal" class="modal">
+                <div class="modal-content">
+                    <span class="close" onclick="closeProductModal()">&times;</span>
+                    <div class="modal-header">Add New Product</div>
+                    <form action="{{ url_for('add_product', user_id=user_id) }}" method="POST">
+                        
+                        <label for="product_id">Product Id:</label>
+                        <input type="text" id="product_id" name="product_id" required><br><br>
+
+                        <label for="product_name">Product Name:</label>
+                        <input type="text" id="product_name" name="product_name" required><br><br>
+
+                        <label for="product_price">Product Price:</label>
+                        <input type="text" id="product_price" name="product_price" required><br><br>
+
+                        <button type="submit">Add Product</button>
+                    </form>
+                </div>
+            </div>
+
+
+            <div class="client-list">
+                {% if products %}
+                <ul>
+                    {% for product in products %}
+                        <li>
+                            <strong>{{ product.product_id }}</strong> 
+                            (Name: {{ product.product_name }}, Price: {{ product.product_price }})
+                        </li>
+                    {% endfor %}
+                </ul>
+                {% else %}
+                    <p>No products available for this supplier.</p>
+                {% endif %}
+            </div>
         </div>
 
     </div>
@@ -368,6 +412,22 @@
         // Close modal if clicked outside of it
         window.onclick = function(event) {
             const modal = document.getElementById("routeModal");
+            if (event.target === modal) {
+                modal.style.display = "none";
+            }
+        }
+
+        function openProductModal() {
+            document.getElementById("productModal").style.display = "block";
+        }
+
+        function closeProductModal() {
+            document.getElementById("productModal").style.display = "none";
+        }
+
+        // Close modal if clicked outside of it
+        window.onclick = function(event) {
+            const modal = document.getElementById("productModal");
             if (event.target === modal) {
                 modal.style.display = "none";
             }
