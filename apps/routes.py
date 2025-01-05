@@ -1,5 +1,6 @@
-from flask import render_template, request, redirect, url_for, session
+from flask import render_template, request, redirect, url_for, session, jsonify
 from .services import Services
+from datetime import datetime
 
 def define_routes(app):
     """Define all application routes."""
@@ -11,7 +12,7 @@ def define_routes(app):
         def index():
             return "Welcome to the Sims App!"
 
-        # Login Page - (Suppliers, Supervisor, Manager)
+        # Login Page - (Suppliers, Supervisors, Managers)
         @app.route('/login', methods=['GET', 'POST'])
         def login():
             return services.handle_login()
@@ -31,6 +32,7 @@ def define_routes(app):
         def add_route(user_id):
             return services.add_route(user_id)
         
+        # Supplier Add Product
         @app.route('/supplier/<int:user_id>/add_product', methods=['POST'])
         def add_product(user_id):
             return services.add_product(user_id)
@@ -39,6 +41,27 @@ def define_routes(app):
         @app.route('/supplier/<int:user_id>/sales', methods=['GET','POST'])
         def sales(user_id):
             return services.handle_sales(user_id)
+        
+        # Similar Product Search for sales form
+        @app.route('/get_similar_products', methods=['GET'])
+        def get_similar_products():
+            query = request.args.get('query', '')
+            return services.handle_product_search(query)
+        
+        # Fetch Product Price
+        @app.route('/get_product_price', methods=['GET'])
+        def get_product_price():
+            product_name = request.args.get('product_name', '')
+            return services.handle_product_price(product_name)
+        
+        @app.route('/save_invoice', methods=['POST'])
+        def save_invoice():
+            data = request.get_json()
+            if not data:
+                return jsonify({"error": "No data provided"}), 400
+            else:
+                return services.save_invoice(data)
+        
         
         # Supplier daily route
         @app.route('/supplier/<int:user_id>/daily_route', methods=['GET','POST'])

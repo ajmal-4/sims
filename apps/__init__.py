@@ -4,7 +4,7 @@ from .routes import define_routes
 
 def create_app():
 
-    app = Flask(__name__, template_folder='../templates',static_folder='../static')
+    app = Flask(__name__, template_folder='../templates', static_folder='../static')
 
     # set the secret key
     app.secret_key = os.getenv("SECRET_KEY", "abcdefg")

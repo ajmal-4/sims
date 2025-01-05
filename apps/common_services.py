@@ -1,3 +1,4 @@
+from flask import jsonify
 from .db import db
 
 class CommonServices:
@@ -7,27 +8,46 @@ class CommonServices:
         self.routes = db.get_collection('routes')
         self.products = db.get_collection('products')
         self.sales = db.get_collection('sales')
+        self.users = db.get_collection('users')
 
     # For authenticating the user - returns the user_type if the user is valid else returns None
     def authenticate_user(self, username, password):
         """Check if the provided username and password are correct."""
+        """Returns the 'type' and 'id' if login is successfull, else None, None"""
         try:
-            # Replace with real authentication logic, e.g., database lookup
-            valid_users = {
-                "manager_1": {"password":"password123","type":"manager","id":"123"},
-                "supervisor_1": {"password":"password123","type":"supervisor","id":"123"},
-                "supplier_1": {"password":"password123","type":"supplier","id":"123"},
-                "supplier_2": {"password":"password123","type":"supplier","id":"321"}
-            }
+            
+            user = self.users.find_one({"username": username})
+        
+            if user and user.get("password") == password:
+                return user.get("type"), user.get("id")
 
-            user = valid_users.get(username)
-            if user and user.get('password') == password:
-                return user.get('type'), user.get('id')
+            # Return None, None if authentication fails
             return None, None
         
         except Exception as e:
             print(f"Exception in authenticate_user : {str(e)}")
             return None, None
+    
+
+    #--------------------------------------#
+    #        Generating Unique ID          #
+    #--------------------------------------#
+
+    def generate_unique_id(self, collection_name):
+        """Generate unique id for products, clients, users, routes, sales"""
+        try:
+            counter = db.get_collection("counters").find_one_and_update(
+                {"_id": collection_name},
+                {"$inc": {"value": 1}},
+                upsert=True,
+                return_document=True
+            )
+
+            return counter.get('value','abc')
+        
+        except Exception as e:
+            print(f"Exception in generate_unique_id : {str(e)}")
+            return 'abc'
     
     
     # ----------------------------------- #
@@ -49,7 +69,7 @@ class CommonServices:
             # ]
 
             routes = list(self.routes.find())
-            print("routes",routes)
+            print("routes", routes)
 
             return routes
 
@@ -60,11 +80,7 @@ class CommonServices:
     def get_supplier_routes(self, supplier_id):
         """ Get the list of all clients of the supplier in that route """
         try:
-
-            # all_routes = self.get_all_routes()
-            # supplier_routes = [
-            #     route for route in all_routes if route.get('supplier') == str(supplier_id)
-            # ] 
+ 
             supplier_routes = list(self.routes.find({"supplier": str(supplier_id)}))
             print("supplier_routes : ",supplier_routes)
 
@@ -82,11 +98,6 @@ class CommonServices:
             """ Retrieves all clients from the database """
             """ Each client will have unique client_id, name, place, route_no and the supplier """
 
-            # clients = [
-            #     {"client_id":"client_1","name":"ajmal","place":"wky","route_no":"1","status":"cleared","debt":None,"supplier":"123"},
-            #     {"client_id":"client_2","name":"mishal","place":"pavaratty","route_no":"2","status":"debt","debt":"100","supplier":"321"}
-            # ]
-
             clients = list(self.clients.find())
             return clients
         
@@ -98,13 +109,6 @@ class CommonServices:
     def get_supplier_clients(self, supplier_id):
         """ Get the list of all clients of the supplier """
         try:
-
-            # Get all clients
-            # clients = self.all_clients()
-            # Get the clients of the parfticular supplier
-            # supplier_clients = [
-            #     client for client in clients if client.get("supplier") == str(supplier_id)
-            # ]
 
             supplier_clients = list(self.clients.find({"supplier": str(supplier_id)}))
             return supplier_clients
@@ -126,11 +130,6 @@ class CommonServices:
         """ Retrieves all products from the database """
         try:
 
-            # products = [
-            #     {"product_id":"product_1","product_name":"milk","product_price":"28"},
-            #     {"product_id":"product_2","product_name":"biscuit","product_price":"40"}
-            # ]
-
             products = list(self.products.find())
             return products
         
@@ -149,23 +148,77 @@ class CommonServices:
             print(f"Exception in get_supplier_products : {str(e)}")
             return None
     
+    def get_similar_products(self, query):
+        """Retrieves the similar products to a product query"""
+        try:
+            products = self.products.find({"product_name": {"$regex": query, "$options": "i"}})
+            product_list = [{"product_name": product['product_name'], "product_price": product['product_price']} for product in products]
+            return jsonify(product_list)
+        
+        except Exception as e:
+            print(f"Exception in get_supplier_products : {str(e)}")
+            return None
+    
+    def get_product_price(self, product_name):
+        """Returns the price of the product"""
+        try:
+            product = self.products.find_one({"product_name": product_name})
+            if product:
+                return jsonify({"product_price": product['product_price']})
+            return jsonify({"product_price": 0})
+        
+        except Exception as e:
+            print(f"Exception in get_supplier_products : {str(e)}")
+            return None
+    
     
     # # # Sales # # #
-    
-    def get_sales_list(self, supplier_id):
+
+    def get_all_sales_list(self):
+        """Returns all the sales data"""
         try:
-
-            all_sales_lists = list(self.sales.find())
-            return all_sales_lists
-
+            
+            all_sales_list = list(self.sales.find())
+            return all_sales_list
+        
         except Exception as e:
             print(f"Exception in get_sales_list : {str(e)}")
+            return None
+    
+    def get_supplier_sales(self, supplier_id):
+        """Returns all the sales data of the supplier"""
+        try:
+
+            supplier_sales_list = list(self.sales.find({"supplier": str(supplier_id)}))
+            return supplier_sales_list
+
+        except Exception as e:
+            print(f"Exception in get_supplier_sales : {str(e)}")
             return None
     
 
     # ----------------------------------- #
     #               Adding                #
     # ----------------------------------- #
+
+    def add_users_to_db(self, users):
+        try:
+            # Flatten the structure for each user
+            flattened_users = []
+            for user in users:
+                for username, details in user.items():
+                    flattened_users.append({
+                        "username": username,
+                        **details
+                    })
+
+            # Insert the flattened data into the collection
+            # result = collection.insert_many(flattened_users)
+            self.users.insert_many(flattened_users)
+            return True
+        except Exception as e:
+            print(f"Exception in add_user_to_db : {str(e)}")
+            return False
 
     def add_client_to_db(self, client_data):
         """ Adds new client to the database """
@@ -192,4 +245,14 @@ class CommonServices:
         except Exception as e:
             print(f"Exception in add_product_to_db : {str(e)}")
             return False
+    
+
+    def save_invoice_to_db(self, invoice):
+        try:
+            result = self.sales.insert_one(invoice)
+            return jsonify({"message": "Invoice saved successfully!", "invoice_id": str(result.inserted_id)}), 201
+        except Exception as e:
+            print(f"Exception in save_invoice_to_db : {str(e)}")
+            return False
+
 

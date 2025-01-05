@@ -153,6 +153,9 @@
     </style>
 </head>
 <body>
+
+
+    <!-- Side bar -->
     <div class="sidebar">
         <h2>Navigation</h2>
         <ul>
@@ -164,15 +167,16 @@
         </ul>
     </div>
 
+
     <div class="content">
         <!-- Daily Route -->
         <div id="daily-route" class="visible">
             <h2>Daily Route Section</h2>
 
-            <button onclick="openDailyRouteModal()">Select Route</button>
+            <button onclick="openModal('dailyRouteModal')">Select Route</button>
             <div id="dailyRouteModal" class="modal">
                 <div class="modal-content">
-                    <span class="close" onclick="closeDailyRouteModal()">&times;</span>
+                    <span class="close" onclick="closeModal('dailyRouteModal')">&times;</span>
                     <div class="modal-header">Select date and daily route</div>
                     <form method="POST" action="{{ url_for('select_route', user_id=user_id) }}">
                         <label for="date">Date:</label>
@@ -191,8 +195,7 @@
                     </form>
                 </div>
             </div>
-
-            
+     
         
             <h3>Clients for Routes {{ selected_routes | join(', ') or 'N/A' }} on {{ selected_date }}</h3>
             {% if filtered_clients %}
@@ -211,15 +214,16 @@
             {% endif %}
         </div>
 
+
         <!-- Clients Section -->
         <div id="clients" class="hidden">
             <h2>Clients</h2>
-            <button onclick="openModal()">Add Client</button>
+            <button onclick="openModal('clientModal')">Add Client</button>
 
             <!-- Add Client Modal -->
             <div id="clientModal" class="modal">
                 <div class="modal-content">
-                    <span class="close" onclick="closeModal()">&times;</span>
+                    <span class="close" onclick="closeModal('clientModal')">&times;</span>
                     <div class="modal-header">Add New Client</div>
                     <form action="{{ url_for('add_client', user_id=user_id) }}" method="POST">
                         <label for="client_name">Client Name:</label>
@@ -230,12 +234,6 @@
 
                         <label for="route_no">Route No:</label>
                         <input type="text" id="route_no" name="route_no" required><br><br>
-
-                        <label for="status">Status:</label>
-                        <input type="text" id="status" name="status"><br><br>
-
-                        <label for="debt">Debt (optional):</label>
-                        <input type="text" id="debt" name="debt"><br><br>
 
                         <button type="submit">Add Client</button>
                     </form>
@@ -260,14 +258,15 @@
             
         </div>
 
+
         <!-- Routes Section -->
         <div id="all-routes" class="hidden">
             <h2>Routes</h2>
-            <button onclick="openRouteModal()">Add Route</button>
+            <button onclick="openModal('routeModal')">Add Route</button>
             <!-- Add Route Modal -->
             <div id="routeModal" class="modal">
                 <div class="modal-content">
-                    <span class="close" onclick="closeModal()">&times;</span>
+                    <span class="close" onclick="closeModal('routeModal')">&times;</span>
                     <div class="modal-header">Add New Route</div>
                     <form action="{{ url_for('add_route', user_id=user_id) }}" method="POST">
                         
@@ -306,23 +305,21 @@
         <!-- Sales Section -->
         <div id="sales" class="hidden">
             <h2>Sales Section</h2>
+            <button onclick="redirectToSales('{{ user_id }}')">Add Sales</button>
         </div>
 
         <!-- Products Section -->
         <div id="all-products" class="hidden">
             <h2>Products Section</h2>
 
-            <button onclick="openProductModal()">Add Product</button>
+            <button onclick="openModal('productModal')">Add Product</button>
             <!-- Add Product Modal -->
             <div id="productModal" class="modal">
                 <div class="modal-content">
-                    <span class="close" onclick="closeProductModal()">&times;</span>
+                    <span class="close" onclick="closeModal('productModal')">&times;</span>
                     <div class="modal-header">Add New Product</div>
                     <form action="{{ url_for('add_product', user_id=user_id) }}" method="POST">
                         
-                        <label for="product_id">Product Id:</label>
-                        <input type="text" id="product_id" name="product_id" required><br><br>
-
                         <label for="product_name">Product Name:</label>
                         <input type="text" id="product_name" name="product_name" required><br><br>
 
@@ -369,69 +366,34 @@
             }
         }
 
-        function openModal() {
-            document.getElementById("clientModal").style.display = "block";
+        // open modal function
+        function openModal(modalId) {
+            document.getElementById(modalId).style.display = "block";
         }
 
-        function closeModal() {
-            document.getElementById("clientModal").style.display = "none";
+        // close modal function
+        function closeModal(modalId) {
+            document.getElementById(modalId).style.display = "none";
         }
 
-        // Close modal if clicked outside of it
-        window.onclick = function(event) {
-            const modal = document.getElementById("clientModal");
-            if (event.target === modal) {
-                modal.style.display = "none";
-            }
-        }
-
-        function openDailyRouteModal() {
-            document.getElementById("dailyRouteModal").style.display = "block";
-        }
-
-        function closeDailyRouteModal() {
-            document.getElementById("dailyRouteModal").style.display = "none";
-        }
 
         // Close modal if clicked outside of it
         window.onclick = function(event) {
-            const modal = document.getElementById("dailyRouteModal");
-            if (event.target === modal) {
-                modal.style.display = "none";
+            var modals = document.getElementsByClassName("modal");
+            console.log(modals)
+            for (var i = 0; i < modals.length; i++) {
+                var modal = modals[i];
+                if (event.target === modal) {
+                    modal.style.display = "none";
+                }
             }
         }
 
-        function openRouteModal() {
-            document.getElementById("routeModal").style.display = "block";
+        function redirectToSales(user_id) {
+            const userId = user_id;
+            window.location.href = `/supplier/${userId}/sales`;
         }
 
-        function closeRouteModal() {
-            document.getElementById("routeModal").style.display = "none";
-        }
-
-        // Close modal if clicked outside of it
-        window.onclick = function(event) {
-            const modal = document.getElementById("routeModal");
-            if (event.target === modal) {
-                modal.style.display = "none";
-            }
-        }
-
-        function openProductModal() {
-            document.getElementById("productModal").style.display = "block";
-        }
-
-        function closeProductModal() {
-            document.getElementById("productModal").style.display = "none";
-        }
-
-        // Close modal if clicked outside of it
-        window.onclick = function(event) {
-            const modal = document.getElementById("productModal");
-            if (event.target === modal) {
-                modal.style.display = "none";
-            }
-        }
     </script>
 </body>
 </html>
