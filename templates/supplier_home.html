@@ -95,6 +95,47 @@
             cursor: pointer;
         }
 
+        /* Back icon */
+        .back-icon {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%,-50%);
+            width: 80px;
+            height: 60px;
+            cursor: pointer;
+        }
+        
+        .back-arrow {
+            position: absolute;
+            top: 25px;
+            width: 90%;
+            height: 10px;
+            background-color: #fff;
+            box-shadow: 0 3px 5px rgba(0, 0, 0, .2);
+            animation: arrow 700ms linear infinite;
+        }
+        
+        .back-arrow::after, .back-arrow::before {
+            content: '';
+            position: absolute;
+            width: 60%;
+            height: 10px;
+            right: -8px;
+            background-color: #fff;
+        }
+        
+        .back-arrow::after {
+            top: -12px;
+            transform: rotate(45deg);
+        }
+        
+        .back-arrow::before {
+            top: 12px;
+            box-shadow: 0 3px 5px rgba(0, 0, 0, .2);
+            transform: rotate(-45deg);
+        }
+
         /* Modal styles */
         .modal {
             display: none;
@@ -225,37 +266,94 @@
                 <div class="modal-content">
                     <span class="close" onclick="closeModal('clientModal')">&times;</span>
                     <div class="modal-header">Add New Client</div>
-                    <form action="{{ url_for('add_client', user_id=user_id) }}" method="POST">
-                        <label for="client_name">Client Name:</label>
-                        <input type="text" id="client_name" name="client_name" required><br><br>
+                    <div id="add-client-form">
+                        <label for="add_client_name">Client Name:</label>
+                        <input type="text" id="add_client_name" name="client_name" required><br><br>
 
-                        <label for="client_place">Client Place:</label>
-                        <input type="text" id="client_place" name="client_place" required><br><br>
+                        <label for="add_client_place">Client Place:</label>
+                        <input type="text" id="add_client_place" name="client_place" required><br><br>
 
-                        <label for="route_no">Route No:</label>
-                        <input type="text" id="route_no" name="route_no" required><br><br>
+                        <label for="add_route_no">Route No:</label>
+                        <input type="text" id="add_route_no" name="route_no" required><br><br>
 
-                        <button type="submit">Add Client</button>
-                    </form>
+                        <button onclick="submitAddClient()">Add Client</button>
+                    </div>
                 </div>
             </div>
 
-            <!-- Clients List -->
             <div class="client-list">
                 {% if clients %}
-                <ul>
+
+                <ul id="client-list">
                     {% for client in clients %}
-                        <li>
-                            <strong>{{ client.name }}</strong> 
-                            (Client ID: {{ client.client_id }}, Place: {{ client.place }}, Route No: {{ client.route_no }}, Debt : {{ client.debt }})
-                        </li>
+
+                    <li
+                        data-client-id="{{ client.client_id }}" 
+                        data-client-name="{{ client.name }}" 
+                        data-client-place="{{ client.place }}" 
+                        data-client-route="{{ client.route_no }}" 
+                        data-client-debt="{{ client.debt }}">
+
+                        <strong>{{ client.name }}</strong> 
+                        Place: {{ client.place }}, Route No: {{ client.route_no }}, Debt: {{ client.debt }}
+
+                    </li>
                     {% endfor %}
+
                 </ul>
                 {% else %}
                     <p>No clients available for this supplier.</p>
                 {% endif %}
             </div>
             
+        </div>
+
+        <!-- Client Profile -->
+        <div id="client-profile" class="hidden">
+            <!-- back button in client profile -->
+            <button class="back-btn">Back</button>
+
+            <h3>Client Profile</h3>
+            <p id="client-name"><strong>Name:</strong> </p>
+            <p id="client-place"><strong>Place:</strong> </p>
+            <p id="client-route"><strong>Route No:</strong> </p>
+            <p id="client-debt"><strong>Debt:</strong> </p>
+            
+            <!-- edit button in client profile -->
+            <button 
+                class="edit-client-btn"
+                style="color: rgb(16, 234, 48); margin-left: 10px;">
+                Edit
+            </button>
+            
+            <!-- delete button in client profile -->
+            <button 
+                class="delete-client-btn"
+                style="color: red; margin-left: 10px;">
+                Delete
+            </button>
+
+            <div id="editClientModal" class="modal">
+                <div class="modal-content">
+                    <span class="close" onclick="closeModal('editClientModal')">&times;</span>
+                    <div class="modal-header">Edit Client</div>
+                    <div class="edit-form">
+                        <input type="hidden" id="edit_client_id">
+                        
+                        <label for="edit_client_name">Client Name:</label>
+                        <input type="text" id="edit_client_name" required><br><br>
+                        
+                        <label for="edit_client_place">Client Place:</label>
+                        <input type="text" id="edit_client_place" required><br><br>
+                        
+                        <label for="edit_route_no">Route No:</label>
+                        <input type="text" id="edit_route_no" required><br><br>
+                        
+                        <button onclick="submitEditClient()">Update Client</button>
+                    </div>
+                </div>
+            </div>
+
         </div>
 
 
@@ -351,6 +449,10 @@
     </div>
 
     <script>
+
+        var user_id = "{{ user_id }}";
+
+        // Show the main sections
         function showSection(sectionId) {
             // Hide all sections
             document.querySelectorAll('.content > div').forEach(section => {
@@ -366,12 +468,12 @@
             }
         }
 
-        // open modal function
+        // Open modal function
         function openModal(modalId) {
             document.getElementById(modalId).style.display = "block";
         }
 
-        // close modal function
+        // Close modal function
         function closeModal(modalId) {
             document.getElementById(modalId).style.display = "none";
         }
@@ -380,18 +482,235 @@
         // Close modal if clicked outside of it
         window.onclick = function(event) {
             var modals = document.getElementsByClassName("modal");
-            console.log(modals)
-            for (var i = 0; i < modals.length; i++) {
-                var modal = modals[i];
+            for (var modal of modals) {
                 if (event.target === modal) {
                     modal.style.display = "none";
                 }
             }
-        }
+        };
 
+        // Function to redirect to sales
         function redirectToSales(user_id) {
             const userId = user_id;
             window.location.href = `/supplier/${userId}/sales`;
+        }
+
+        // Show Client Profile
+        function showClientProfile(clientId, name, place, routeNo, debt) {
+            // Display the client profile section
+            const profileDiv = document.getElementById('client-profile');
+        
+            // Set data attributes on the profile div
+            profileDiv.setAttribute('data-client-id', clientId);
+            profileDiv.setAttribute('data-client-name', name);
+            profileDiv.setAttribute('data-client-place', place);
+            profileDiv.setAttribute('data-client-route', routeNo);
+            profileDiv.setAttribute('data-client-debt', debt);
+        
+            // Populate profile details
+            document.getElementById('client-name').innerText = `Name: ${name}`;
+            document.getElementById('client-place').innerText = `Place: ${place}`;
+            document.getElementById('client-route').innerText = `Route No: ${routeNo}`;
+            document.getElementById('client-debt').innerText = `Debt: ${debt}`;
+            
+            // Set data attributes for both buttons
+            const deleteButton = profileDiv.querySelector('.delete-client-btn');
+            const editButton = profileDiv.querySelector('.edit-client-btn');
+            
+            deleteButton.setAttribute('data-client-id', clientId);
+            editButton.setAttribute('data-client-id', clientId);
+        
+            showSection('client-profile');
+        }
+        
+        // Event listener in client list
+        document.getElementById('client-list').addEventListener('click', function (event) {
+            const target = event.target;
+
+            // Handle client list item clicks
+            const listItem = target.closest('li');
+            if (listItem) {
+                const clientId = listItem.getAttribute('data-client-id');
+                const name = listItem.getAttribute('data-client-name');
+                const place = listItem.getAttribute('data-client-place');
+                const routeNo = listItem.getAttribute('data-client-route');
+                const debt = listItem.getAttribute('data-client-debt');
+                showClientProfile(clientId, name, place, routeNo, debt);
+            }
+        });
+
+        // Open Edit client modal 
+        function editClient(clientId, name, place, routeNo) {
+            // Populate the modal
+            document.getElementById('edit_client_id').value = clientId;
+            document.getElementById('edit_client_name').value = name;
+            document.getElementById('edit_client_place').value = place;
+            document.getElementById('edit_route_no').value = routeNo;
+            
+            openModal('editClientModal');
+        }
+
+        // Event listener in client-profile
+        document.getElementById('client-profile').addEventListener('click', function (event) {
+            const target = event.target;
+            const profileDiv = document.getElementById('client-profile');
+
+            // Handle back button click in client-profile
+            if (target.classList.contains('back-btn')) {
+                showSection('clients');
+            }
+
+            // Handle edit button click in client-profile
+            if (target.classList.contains('edit-client-btn')) {
+                editClient(
+                    profileDiv.getAttribute('data-client-id'),
+                    profileDiv.getAttribute('data-client-name'),
+                    profileDiv.getAttribute('data-client-place'),
+                    profileDiv.getAttribute('data-client-route')
+                );
+            }
+
+            // Handle delete button click in client-profile
+            if (target.classList.contains('delete-client-btn')) {
+                const clientId = target.getAttribute('data-client-id');
+                deleteClient(clientId);
+                showSection('clients');
+            }
+
+        });
+
+        // Add client
+        function submitAddClient() {
+            // Collect input data from the div
+            const clientData = {
+                client_name: document.getElementById('add_client_name').value,
+                client_place: document.getElementById('add_client_place').value,
+                route_no: document.getElementById('add_route_no').value
+            };
+        
+            // Send data to the server
+            fetch(`/supplier/${user_id}/add_client`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(clientData),
+            })
+                .then(response => {
+                    if (response.ok) {
+                        return response.json();
+                    } else {
+                        throw new Error('Failed to add client');
+                    }
+                })
+                .then(data => {
+                    // Dynamically add the new client to the client list
+                    const clientList = document.getElementById('client-list');
+                    const newClient = document.createElement('li');
+
+                    newClient.setAttribute('data-client-id', data.client_id);
+                    newClient.setAttribute('data-client-name', data.name);
+                    newClient.setAttribute('data-client-place', data.place);
+                    newClient.setAttribute('data-client-route', data.route_no);
+                    newClient.setAttribute('data-client-debt', 'None');
+                
+                    newClient.innerHTML = `
+                        <strong>${data.name}</strong> 
+                        Place: ${data.place}, Route No: ${data.route_no}, Debt: None
+                    `;
+                    clientList.appendChild(newClient);
+                
+                    closeModal('clientModal');
+                
+                    // Reset input fields
+                    document.getElementById('add_client_name').value = '';
+                    document.getElementById('add_client_place').value = '';
+                    document.getElementById('add_route_no').value = '';
+                })
+                .catch(error => {
+                    alert('An error occurred while adding the client.');
+                });
+        }
+        
+        // Edit client
+        function submitEditClient() {
+            const clientId = document.getElementById('edit_client_id').value;
+            const updatedData = {
+                client_id: clientId,
+                name: document.getElementById('edit_client_name').value,
+                place: document.getElementById('edit_client_place').value,
+                route_no: document.getElementById('edit_route_no').value
+            };
+        
+            fetch(`/supplier/${user_id}/edit_client`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(updatedData)
+            })
+            .then(response => {
+                if (response.ok) {
+                    // Update the client list
+                    const listItem = document.querySelector(`li[data-client-id="${clientId}"]`);
+                    if (listItem) {
+                        listItem.setAttribute('data-client-name', updatedData.name);
+                        listItem.setAttribute('data-client-place', updatedData.place);
+                        listItem.setAttribute('data-client-route', updatedData.route_no);
+                        listItem.innerHTML = `
+                            <strong>${updatedData.name}</strong>
+                            Place: ${updatedData.place}, Route No: ${updatedData.route_no}, Debt: ${listItem.getAttribute('data-client-debt')}
+                        `;
+                    }
+                
+                    // Update the profile if it's currently displayed
+                    const profileDiv = document.getElementById('client-profile');
+                    profileDiv.setAttribute('data-client-name', updatedData.name);
+                    profileDiv.setAttribute('data-client-place', updatedData.place);
+                    profileDiv.setAttribute('data-client-route', updatedData.route_no);
+                
+                    document.getElementById('client-name').innerText = `Name: ${updatedData.name}`;
+                    document.getElementById('client-place').innerText = `Place: ${updatedData.place}`;
+                    document.getElementById('client-route').innerText = `Route No: ${updatedData.route_no}`;
+                
+                    closeModal('editClientModal');
+                    
+                    alert("Client updated successfully!");
+                } else {
+                    alert("Failed to update the client. Please try again.");
+                }
+            })
+            .catch(error => {
+                alert("An error occurred while updating the client.");
+            });
+        }
+    
+        // Delete client
+        function deleteClient(clientId) {
+            if (confirm("Are you sure you want to delete this client?")) {
+                fetch(`/supplier/${user_id}/delete_client`, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({ client_id: clientId }),
+                })
+                .then(response => {
+                    if (response.ok) {
+                        const listItem = document.querySelector(`li[data-client-id="${clientId}"]`);
+                        if (listItem) {
+                            listItem.remove();
+                        }
+                    
+                    } else {
+                        alert("Failed to delete the client. Please try again.");
+                    }
+                })
+                .catch(error => {
+                    console.error("Error:", error);
+                    alert("An error occurred while deleting the client.");
+                });
+            }
         }
 
     </script>

@@ -1,5 +1,7 @@
 from flask import jsonify
 from .db import db
+from pymongo import DESCENDING
+from .constants import SuccessMessages, ERRORMESSAGES, Projections, PaymentStatus
 
 class CommonServices:
 
@@ -82,8 +84,6 @@ class CommonServices:
         try:
  
             supplier_routes = list(self.routes.find({"supplier": str(supplier_id)}))
-            print("supplier_routes : ",supplier_routes)
-
             return supplier_routes
         
         except Exception as e:
@@ -110,7 +110,7 @@ class CommonServices:
         """ Get the list of all clients of the supplier """
         try:
 
-            supplier_clients = list(self.clients.find({"supplier": str(supplier_id)}))
+            supplier_clients = list(self.clients.find({"supplier": str(supplier_id)}, {"_id": 0}))
             return supplier_clients
         
         except Exception as e:
@@ -152,8 +152,11 @@ class CommonServices:
         """Retrieves the similar products to a product query"""
         try:
             products = self.products.find({"product_name": {"$regex": query, "$options": "i"}})
-            product_list = [{"product_name": product['product_name'], "product_price": product['product_price']} for product in products]
-            return jsonify(product_list)
+            if products:
+                product_list = [{"product_name": product['product_name'], "product_price": product['product_price']} for product in products]
+                return jsonify(product_list)
+            else:
+                return None
         
         except Exception as e:
             print(f"Exception in get_supplier_products : {str(e)}")
@@ -186,7 +189,7 @@ class CommonServices:
             return None
     
     def get_supplier_sales(self, supplier_id):
-        """Returns all the sales data of the supplier"""
+        """ Returns all the sales data of the supplier """
         try:
 
             supplier_sales_list = list(self.sales.find({"supplier": str(supplier_id)}))
@@ -195,6 +198,26 @@ class CommonServices:
         except Exception as e:
             print(f"Exception in get_supplier_sales : {str(e)}")
             return None
+    
+    def get_supplier_last_sale_data(self, query):
+        """ Returns the last sale data of the supplier """
+        try:
+            result = self.sales.find_one(query, Projections.EXCLUDE_ID, sort=[("date", -1)])
+            return result
+        
+        except Exception as e:
+            print(f"Exception in get_supplier_last_sale_data : {str(e)}")
+            return None
+    
+    def get_supplier_recent_sales_data(self, query, limit):
+        try:
+            result = list(self.sales.find(query, Projections.EXCLUDE_ID).sort("date", DESCENDING).limit(limit))
+            return result
+        
+        except Exception as e:
+            print(f"Exception in get_supplier_recent_sales_data : {str(e)}")
+            return None
+
     
 
     # ----------------------------------- #
@@ -223,8 +246,12 @@ class CommonServices:
     def add_client_to_db(self, client_data):
         """ Adds new client to the database """
         try:
-            self.clients.insert_one(client_data)
-            return True
+            result = self.clients.insert_one(client_data)
+            if result.inserted_id:
+                return True
+            else:
+                return False
+            
         except Exception as e:
             print(f"Exception in add_client_to_db : {str(e)}")
             return False
@@ -247,12 +274,90 @@ class CommonServices:
             return False
     
 
-    def save_invoice_to_db(self, invoice):
+    def save_sales_to_db(self, sales_data):
         try:
-            result = self.sales.insert_one(invoice)
-            return jsonify({"message": "Invoice saved successfully!", "invoice_id": str(result.inserted_id)}), 201
+            result = self.sales.insert_one(sales_data)
+            if result.inserted_id:
+                return jsonify({"success": True, "message": SuccessMessages.ADD_INVOICE}), 201
+            else:
+                return jsonify({"success": False, "message": ERRORMESSAGES.ADD_INVOICE}), 500
+            
         except Exception as e:
             print(f"Exception in save_invoice_to_db : {str(e)}")
+            return jsonify({"message": ERRORMESSAGES.ADD_INVOICE}), 500
+    
+    
+    def save_transaction_to_db(self, sales_data):
+        try:
+            sale_id = sales_data.get('sale_id', False)
+
+            paid_amount = sales_data.get('paid_amount', 0)
+            total_amount = sales_data.get('total_amount', 0)
+            debt = max(0, total_amount - paid_amount)
+            credit = max(0, paid_amount - total_amount)
+
+            if debt == 0 and credit == 0:
+                payment_status = PaymentStatus.SETTLED
+                additional_data = {}
+            elif debt > 0:
+                payment_status = PaymentStatus.PENDING
+                additional_data = {"debt": debt}
+            else:
+                payment_status = PaymentStatus.CREDITED
+                additional_data = {"credit": credit}
+            
+            transaction_id = self.generate_unique_id('transaction')
+
+            transaction_data = {
+                "transaction_id": transaction_id,
+                "paid_amount": paid_amount,
+                "total_amount": total_amount,
+                "payment_status": payment_status.value,
+                **additional_data
+            }
+
+
+            
+
+            
+
+
+            
+
+            
+            
+            
+            
+
+        except Exception as e:
+            print(f"Exception in save_transaction_to_db : {str(e)}")
+            return False
+    
+    def edit_client_from_db(self, client_id, update_data):
+        try:
+            result = self.clients.update_one(
+                        {'client_id': client_id}, 
+                        {'$set': update_data}
+                    )
+            
+            if result.modified_count > 0:
+                return True
+            else:
+                return False
+            
+        except Exception as e:
+            print(f"Exception in edit_client_from_db : {str(e)}")
+            return False
+    
+    def delete_client_from_db(self, client_id):
+        try:
+            result = self.clients.delete_one({"client_id": str(client_id)})
+            if result.deleted_count > 0:
+                return True
+            else:
+                return False
+        except Exception as e:
+            print(f"Exception in edit_client_from_db : {str(e)}")
             return False
 
 

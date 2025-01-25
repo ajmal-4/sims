@@ -1,7 +1,7 @@
 from datetime import datetime
-from .forms import InvoiceForm
 from .common_services import CommonServices
-from flask import Flask, request, render_template, redirect, url_for, session
+from flask import Flask, request, render_template, redirect, url_for, session, jsonify
+from .constants import HTMLPAGES, ERRORMESSAGES, SuccessMessages, Limits
 
 class Services:
     def __init__(self) -> None:
@@ -10,6 +10,7 @@ class Services:
     def handle_login(self):
         """Handles the login logic of different users"""
         try:
+
             if request.method == 'POST':
                 
                 username = request.form.get('username')
@@ -23,7 +24,7 @@ class Services:
                 user_type, user_id = self.common_service.authenticate_user(username, password)
                 
                 # Check the user type and redirect to that template
-                if user_type:
+                if user_type and user_id:
                     # Store user type in session
                     session['user_type'] = user_type
                     session['user_name'] = username
@@ -34,25 +35,26 @@ class Services:
                 
                 else:
                     # Render login page with an error message
-                    return render_template('login.html', error="Invalid credentials. Please try again.")
+                    return render_template(HTMLPAGES.LOGIN_PAGE, error="Invalid credentials. Please try again.")
                 
             # GET request: Render the login form
-            return render_template('login.html')   
+            return render_template(HTMLPAGES.LOGIN_PAGE)   
         
         except Exception as e:
             print(f"Exception in handle_login : {str(e)}")
-            return render_template('login.html')
+            return render_template(HTMLPAGES.LOGIN_PAGE)
     
+
     def supplier_home(self, user_id):
         """Renders the supplier home page with routes, clients, sales and products based on the user_id."""
         try:
-            
+
             routes = self.common_service.get_supplier_routes(user_id)
             clients = self.common_service.get_supplier_clients(user_id)
             products = self.common_service.get_supplier_products(user_id)
             sales = self.common_service.get_supplier_sales(user_id)
 
-            return render_template('supplier_home.html', 
+            return render_template(HTMLPAGES.SUPPLIER_HOME_PAGE, 
                                    user_id=user_id, 
                                    user_name=session.get('user_name'), 
                                    clients=clients, 
@@ -63,17 +65,21 @@ class Services:
         
         except Exception as e:
             print(f"Exception in supplier_home : {str(e)}")
+            return render_template(
+                HTMLPAGES.ERROR_PAGE,
+                e
+            )
     
-    def add_client(self, user_id):
+
+    def add_client(self, user_id, data):
         """Add new client into the database"""
         try:
 
             if request.method == 'POST':
 
-                # Retrieve client details from the form
-                client_name = str(request.form.get('client_name'))
-                client_place = str(request.form.get('client_place'))
-                route_no = str(request.form.get('route_no'))
+                client_name = str(data.get('client_name'))
+                client_place = str(data.get('client_place'))
+                route_no = str(data.get('route_no'))
 
                 # Generate unique client_id dynamically
                 client_id = f"client_{self.common_service.generate_unique_id('clients')}"
@@ -98,12 +104,52 @@ class Services:
 
                 # Redirect or return an error message based on success
                 if success:
-                    return redirect(url_for('supplier_home', user_id=user_id))
+                    if '_id' in client_data:
+                        del client_data['_id']
+                        return jsonify(client_data), 200
                 else:
-                    return "Error adding client", 500
+                    return ERRORMESSAGES.ADD_CLIENT, 500
 
         except Exception as e:
             print(f"Exception in add_client : {str(e)}")
+            return ERRORMESSAGES.ADD_CLIENT, 500
+    
+    
+    def edit_client(self, client_data):
+        """Edit the existing client in the database"""
+        try:
+
+            client_id = client_data.get('client_id')
+            update_data = {
+                'name': client_data.get('name'),
+                'place': client_data.get('place'),
+                'route_no': client_data.get('route_no')
+            }
+
+            success = self.common_service.edit_client_from_db(client_id, update_data)
+            
+            if success:
+                return jsonify({"message": SuccessMessages.EDIT_CLIENT}), 200
+            else:
+                return jsonify({"message": ERRORMESSAGES.EDIT_CLIENT}), 500
+        
+        except Exception as e:
+            print(f"Exception in edit_client : {str(e)}")
+            return jsonify({"message": ERRORMESSAGES.EDIT_CLIENT}), 500
+    
+    
+    def delete_client(self, client_id):
+        """Delete the existing client in the database"""
+        try:
+            success = self.common_service.delete_client_from_db(client_id)
+            if success:
+                return jsonify({"message": SuccessMessages.DELETE_CLIENT}), 200
+            else:
+                return jsonify({"message": ERRORMESSAGES.DELETE_CLIENT}), 500
+
+        except Exception as e:
+            print(f"Exception in delete_client : {str(e)}")
+            return jsonify({"message": ERRORMESSAGES.DELETE_CLIENT}), 500
     
     def add_route(self, user_id):
         try:
@@ -159,9 +205,10 @@ class Services:
     def handle_sales(self, user_id):
         """Redirect to the sales page"""
         try:
-            return render_template('sales.html', user_id=user_id)
+            return render_template(HTMLPAGES.SALES_PAGE, user_id=user_id)
         except Exception as e:
             print(f"Exception in add_product : {str(e)}")
+            return render_template(HTMLPAGES.ERROR_PAGE)
     
     def handle_product_search(self, query):
         """Returns the product for the invoice creation"""
@@ -183,19 +230,58 @@ class Services:
             print(f"Exception in get_product_price : {str(e)}")
             return None
     
-    def save_invoice(self, data):
+    def save_sales(self, data):
+        """ Save the sales data into the database """
         try:
-            invoice = {
+            sale_id = f"sale_{self.common_service.generate_unique_id('sales')}"
+
+            sales_data = {
+                "sale_id": sale_id,
+                "client":data.get("client",''),
+                "supplier": data.get("supplier", ''),
                 "products": data.get("products", []),
                 "total_amount": data.get("total_amount", 0.0),
-                "date": data.get("date", datetime.now().isoformat())
+                "date": data.get("date", datetime.now().isoformat()),
+                "paid_amount": data.get("paid_amount", 0.0) # To be added.
             }
 
-            result = self.common_service.save_invoice_to_db(invoice)
+            transaction_result = self.common_service.save_transaction_to_db(sales_data)
+            
+            result = self.common_service.save_sales_to_db(sales_data)
+            
+
+
+
             return result
 
         except Exception as e:
             print(f"Exception in save_invoice : {str(e)}")
+            return None
+    
+    def get_last_sales(self, user_id, data):
+        """ Returns the last sales data of a client """
+        try:
+            query = {
+                "supplier" : str(user_id),
+                "client" : data.get('client')
+            }
+
+            if str(data.get('limit')) == str(Limits.LAST_SALE_DATA_LIMIT):
+                data = self.common_service.get_supplier_last_sale_data(query)
+                if data:
+                    return jsonify({"success": True, "sale_data": data}), 200
+                else:
+                    return jsonify({"success": False, "message": ERRORMESSAGES.FETCH_LAST_SALES_DATA}), 404
+            
+            else:
+                data = self.common_service.get_supplier_recent_sales_data(query, Limits.RECENT_SALE_DATA_LIMIT)
+                if data:
+                    return jsonify({"success": True, "sale_data": data}), 200
+                else:
+                    return jsonify({"success": False, "message": ERRORMESSAGES.FETCH_RECENT_SALES_DATA}), 404
+
+        except Exception as e:
+            print(f"Exception in get_last_sales : {str(e)}")
             return None
     
     def daily_route(self, user_id):

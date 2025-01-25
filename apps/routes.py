@@ -1,11 +1,13 @@
 from flask import render_template, request, redirect, url_for, session, jsonify
 from .services import Services
+from .common_services import CommonServices
 from datetime import datetime
 
 def define_routes(app):
     """Define all application routes."""
     try:
         services = Services()
+        common_service = CommonServices()
 
         # Home Page - Need to fill with best animation
         @app.route('/')
@@ -17,30 +19,64 @@ def define_routes(app):
         def login():
             return services.handle_login()
 
-        # Supplier Home Page
+
+        # ---------------------------------- #
+        #        Supplier Home Page          #
+        # ---------------------------------- #
+        
+        # supplier main page 
         @app.route('/supplier/<int:user_id>/home', methods=['GET', 'POST'])
         def supplier_home(user_id):
             return services.supplier_home(user_id)
         
+        
+        ### Client ###
+
         # Supplier Add Client
         @app.route('/supplier/<int:user_id>/add_client', methods=['POST'])
         def add_client(user_id):
-            return services.add_client(user_id)
+            data = request.get_json()
+            return services.add_client(user_id, data)
         
+        # Supplier Edit Client
+        @app.route('/supplier/<int:user_id>/edit_client', methods=['POST'])
+        def edit_client(user_id):
+            data = request.get_json()
+            return services.edit_client(data)
+        
+        # Supplier Delete Client
+        @app.route('/supplier/<int:user_id>/delete_client', methods=['POST'])
+        def delete_client(user_id):
+            data = request.get_json()
+            client_id = data.get('client_id')
+            return services.delete_client(client_id)
+        
+        ### Route ###
+
         # Supplier Add Route
         @app.route('/supplier/<int:user_id>/add_route', methods=['POST'])
         def add_route(user_id):
             return services.add_route(user_id)
+        
+        ### Product ###
         
         # Supplier Add Product
         @app.route('/supplier/<int:user_id>/add_product', methods=['POST'])
         def add_product(user_id):
             return services.add_product(user_id)
         
-        # Supplier Sales deals
+        ### sales ###
+
+        # Redirect to Supplier sales page
         @app.route('/supplier/<int:user_id>/sales', methods=['GET','POST'])
         def sales(user_id):
             return services.handle_sales(user_id)
+        
+        # Get list of all clients 
+        @app.route('/get_clients/<int:user_id>', methods=['GET'])
+        def get_clients(user_id):
+            clients = common_service.get_supplier_clients(user_id)
+            return jsonify({"clients": clients})
         
         # Similar Product Search for sales form
         @app.route('/get_similar_products', methods=['GET'])
@@ -54,13 +90,29 @@ def define_routes(app):
             product_name = request.args.get('product_name', '')
             return services.handle_product_price(product_name)
         
-        @app.route('/save_invoice', methods=['POST'])
-        def save_invoice():
+        # Save the sales data
+        @app.route('/save_sales/<int:user_id>', methods=['POST'])
+        def save_sales(user_id):
             data = request.get_json()
             if not data:
                 return jsonify({"error": "No data provided"}), 400
             else:
-                return services.save_invoice(data)
+                return services.save_sales(data)
+        
+        # Get the last sales data of a client
+        @app.route('/get_last_sale/<int:user_id>', methods=['GET'])
+        def get_last_sale(user_id):
+            data = {
+                'client' : request.args.get('client','other'),
+                'limit' : request.args.get('limit', 1)
+            }
+            if data:
+                return services.get_last_sales(user_id, data)
+        
+        @app.route('/update_sales/<int:user_id>', methods=['PUT'])
+        def update_sales(user_id):
+            print("hj")
+
         
         
         # Supplier daily route

@@ -5,16 +5,41 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sales</title>
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.23/jspdf.plugin.autotable.min.js"></script>
 </head>
 
 <body>
 
+    <!-- signature -->
+    <!-- <div>
+        <label for="signature">Signature</label>
+        <canvas id="signature-pad" width="400" height="150" style="border: 1px solid #000;"></canvas>
+        <br>
+        <button type="button" id="clear-signature" class="btn btn-danger">Clear Signature</button>
+    </div> -->
+    
+
+    <!-- Load last invoice -->
+    <div style="position: absolute; top: 20px; right: 20px;">
+        <button style="background-color: blue; color: white; padding: 8px 16px;" id="load_last_invoice">Load Last Invoice</button>
+    </div>
+    
+
     <h1 style="text-align: center;">Create Invoice</h1>
+    
+    <!-- Client Drop Down -->
+    <h3 style="margin-left: 20px;">Client Details</h3>
+    <div style="margin-left: 20px;">
+        <label for="client_name">Select Client</label>
+        <select id="client_name">
+            <option value="Other">Other</option>
+        </select>
+    </div>
+
     <h3 style="margin-left: 20px;">Product Details</h3>
 
+    <!-- Table Titles -->
     <div style="margin-left: 20px;">
         <label for="product_name">Product Name</label>
         <input type="text" id="product_name" placeholder="Type product name..." list="product_list">
@@ -24,7 +49,7 @@
         <input type="number" id="quantity" min="1" value="1">
 
         <label for="product_price">Price</label>
-        <input type="text" id="product_price" readonly>
+        <input type="number" step="0.01" id="product_price" placeholder="Enter price if not fetched">
 
         <label for="amount">Amount</label>
         <input type="text" id="amount" readonly>
@@ -32,6 +57,7 @@
         <button style="background-color: gray; color: white;" id="add_product">Add Product</button>
     </div>
 
+    <!-- Table -->
     <div style="margin: 20px;">
         <table border="1" width="80%" cellspacing="0" cellpadding="5">
             <thead>
@@ -40,6 +66,7 @@
                     <th>Quantity</th>
                     <th>Price</th>
                     <th>Amount</th>
+                    <th>Action</th>
                 </tr>
             </thead>
             <tbody id="product_table_body"></tbody>
@@ -50,114 +77,168 @@
         <h3>Total Amount: <span id="total_amount">$0.00</span></h3>
     </div>
 
+    <!-- Submit Invoice -->
     <div style="margin-left: 20px; margin-top: 20px;">
         <button style="background-color: green; color: white;" id="save_invoice">Save Invoice</button>
     </div>
 
+    <!-- Download Invoice -->
     <div style="position: absolute; bottom: 20px; right: 20px;">
         <a href="#" id="download_invoice">Download Invoice (PDF)</a>
     </div>
 
     <script>
-
+        var userId = "{{ user_id }}";
         const { jsPDF } = window.jspdf;
         let totalAmount = 0;
 
-        // Auto-fetch product suggestions
-        $('#product_name').on('input', function () {
-            let query = $(this).val();
-            if (query.length > 1) {
-                $.ajax({
-                    url: '/get_similar_products',
-                    method: 'GET',
-                    data: { query: query },
-                    success: function (response) {
-                        $('#product_list').empty();
-                        response.forEach(product => {
-                            $('#product_list').append(
-                                `<option value="${product.product_name}">${product.product_name}</option>`
-                            );
+        // Fetch clients from DB
+        document.addEventListener('DOMContentLoaded', function () {
+            fetch(`/get_clients/${userId}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.clients && data.clients.length > 0) {
+                        data.clients.forEach(client => {
+                            const option = document.createElement('option');
+                            option.value = client.client_id;
+                            option.dataset.name = client.name;
+                            option.textContent = client.name;
+                            document.getElementById('client_name').appendChild(option);
                         });
-                    },
-                    error: function () {
-                        console.log('Error fetching product suggestions.');
                     }
+                })
+                .catch(() => {
+                    console.log('Error fetching client list.');
                 });
+        });
+
+        // Auto-fetch product suggestions
+        document.getElementById('product_name').addEventListener('input', function () {
+            let query = this.value;
+            if (query.length > 1) {
+                fetch(`/get_similar_products?query=${query}`)
+                    .then(response => response.json())
+                    .then(products => {
+                        const datalist = document.getElementById('product_list');
+                        datalist.innerHTML = '';
+                        products.forEach(product => {
+                            const option = document.createElement('option');
+                            option.value = product.product_name;
+                            datalist.appendChild(option);
+                        });
+                    })
+                    .catch(() => {
+                        console.log('Error fetching product suggestions.');
+                    });
             }
         });
 
         // Fetch product price when product is selected
-        $('#product_name').on('change', function () {
-            let selectedProduct = $(this).val();
-            $.ajax({
-                url: '/get_product_price',
-                method: 'GET',
-                data: { product_name: selectedProduct },
-                success: function (response) {
-                    if (response.product_price) {
-                        $('#product_price').val(response.product_price);
+        document.getElementById('product_name').addEventListener('change', function () {
+            let selectedProduct = this.value;
+            fetch(`/get_product_price?product_name=${selectedProduct}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.product_price) {
+                        document.getElementById('product_price').value = data.product_price;
                         calculateAmount();
                     } else {
-                        $('#product_price').val('');
-                        $('#amount').val('');
+                        document.getElementById('product_price').value = '';
+                        calculateAmount();
                     }
-                },
-                error: function () {
+                })
+                .catch(() => {
                     console.log('Error fetching product price.');
-                }
-            });
+                });
         });
-        
+
         // Calculate amount after entering quantity
-        $('#quantity').on('input', calculateAmount);
+        document.getElementById('quantity').addEventListener('input', calculateAmount);
+        document.getElementById('product_price').addEventListener('input', calculateAmount);
+
         function calculateAmount() {
-            let price = parseFloat($('#product_price').val()) || 0;
-            let quantity = parseInt($('#quantity').val()) || 1;
+            let price = parseFloat(document.getElementById('product_price').value) || 0;
+            let quantity = parseInt(document.getElementById('quantity').value) || 1;
             let amount = price * quantity;
-            $('#amount').val(amount.toFixed(2));
+            document.getElementById('amount').value = amount.toFixed(2);
         }
 
         // Add product to table and update total amount
-        $('#add_product').on('click', function () {
-            let productName = $('#product_name').val();
-            let quantity = $('#quantity').val();
-            let price = $('#product_price').val();
-            let amount = $('#amount').val();
+        document.getElementById('add_product').addEventListener('click', function () {
+            let productName = document.getElementById('product_name').value;
+            let quantity = document.getElementById('quantity').value;
+            let price = document.getElementById('product_price').value;
+            let amount = document.getElementById('amount').value;
 
             if (productName && quantity > 0 && price && amount) {
-                $('#product_table_body').append(`
-                    <tr>
-                        <td>${productName}</td>
-                        <td>${quantity}</td>
-                        <td>$${parseFloat(price).toFixed(2)}</td>
-                        <td>$${parseFloat(amount).toFixed(2)}</td>
-                    </tr>
-                `);
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${productName}</td>
+                    <td>${quantity}</td>
+                    <td>$${parseFloat(price).toFixed(2)}</td>
+                    <td>$${parseFloat(amount).toFixed(2)}</td>
+                    <td>
+                        <button class="delete-row" style="background-color: red; color: white;">
+                            Delete
+                        </button>
+                    </td>
+                `;
+                document.getElementById('product_table_body').appendChild(row);
 
                 totalAmount += parseFloat(amount);
-                $('#total_amount').text(`$${totalAmount.toFixed(2)}`);
+                document.getElementById('total_amount').textContent = `$${totalAmount.toFixed(2)}`;
                 clearFields();
             } else {
                 alert('Please fill in all fields correctly.');
             }
         });
 
+        // Delete product row
+        document.getElementById('product_table_body').addEventListener('click', function (e) {
+            if (e.target && e.target.classList.contains('delete-row')) {
+                let row = e.target.closest('tr');
+                let amountCell = row.querySelector('td:nth-child(4)').textContent;
+                let amount = parseFloat(amountCell.replace('$', ''));
+
+                totalAmount -= amount;
+                document.getElementById('total_amount').textContent = `$${totalAmount.toFixed(2)}`;
+
+                row.remove();
+            }
+        });
+
         function clearFields() {
-            $('#product_name').val('');
-            $('#quantity').val(1);
-            $('#product_price').val('');
-            $('#amount').val('');
+            document.getElementById('product_name').value = '';
+            document.getElementById('quantity').value = 1;
+            document.getElementById('product_price').value = '';
+            document.getElementById('amount').value = '';
         }
 
-        // Save Invoice to MongoDB
-        $('#save_invoice').on('click', function () {
+        // Clear the invoice after submission
+        function clearInvoice() {
+            // Clear the product table
+            document.getElementById('product_table_body').innerHTML = '';
+
+            // Reset total amount
+            totalAmount = 0;
+            document.getElementById('total_amount').textContent = '$0.00';
+
+            // Reset all input fields
+            clearFields();
+
+            // Reset client selection to default
+            document.getElementById('client_name').value = 'Other';
+        }
+
+        // Save Invoice to DB
+        document.getElementById('save_invoice').addEventListener('click', function () {
             let products = [];
-            $('#product_table_body tr').each(function () {
-                let row = $(this).find('td');
+            document.querySelectorAll('#product_table_body tr').forEach(function (row) {
+                let cells = row.querySelectorAll('td');
                 products.push({
-                    product_name: row.eq(0).text(),
-                    quantity: parseInt(row.eq(1).text()),
-                    price: parseFloat(row.eq(2).text().replace('$', ''))
+                    product_name: cells[0].textContent,
+                    quantity: parseInt(cells[1].textContent),
+                    price: parseFloat(cells[2].textContent.replace('$', ''))
                 });
             });
 
@@ -166,63 +247,264 @@
                 return;
             }
 
-            let invoiceData = {
+            let clientId = document.getElementById('client_name').value;
+            let salesData = {
+                client: clientId,
+                supplier : userId,
                 products: products,
                 total_amount: totalAmount,
                 date: new Date().toISOString()
             };
 
-            $.ajax({
-                url: '/save_invoice',
-                method: 'POST',
-                contentType: 'application/json',
-                data: JSON.stringify(invoiceData),
-                success: function (response) {
-                    alert(response.message);
+            // If edit mode, add the sale_id
+            const saleId = this.dataset.saleId;
+            if (saleId) {
+                salesData.sale_id = saleId;
+            }
+
+            fetch(saleId ? `/update_sales/${userId}` : `/save_sales/${userId}`, {
+                method: saleId ? 'PUT' : 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
                 },
-                error: function () {
-                    console.log('Error saving invoice.');
-                }
-            });
+                body: JSON.stringify(salesData)
+            })
+                .then(response => response.json())
+                .then(data => {
+                    console.log(data)
+                    if (data.success) {
+                        clearInvoice();
+                        alert('Invoice saved successfully!');
+                    } else {
+                        alert('Error saving invoice.');
+                    }
+                })
+                .catch(() => {
+                    alert('Error saving invoice.');
+                });
         });
 
-        // Download Invoice as PDF
-        $('#download_invoice').on('click', function (e) {
-            e.preventDefault();
 
+        // Download Invoice as PDF
+        document.getElementById('download_invoice').addEventListener('click', function (e) {
+            e.preventDefault();
+        
             const doc = new jsPDF();
             doc.setFontSize(16);
             doc.text("Invoice", 105, 10, null, null, 'center');
-
+        
             let y = 20; // Start position for table
             doc.setFontSize(12);
             doc.text("Product Details:", 10, y);
             y += 10;
-
+        
+            // Generate the table using autoTable
             doc.autoTable({
                 startY: y,
                 head: [['Product Name', 'Quantity', 'Price', 'Amount']],
                 body: getProductTableData(),
             });
-
+        
+            // Add the total amount below the table
             y = doc.lastAutoTable.finalY + 10;
+            const totalAmount = calculateTotalAmount(); // Calculate dynamically
             doc.text(`Total Amount: $${totalAmount.toFixed(2)}`, 10, y);
-
+        
+            // Save the PDF
             doc.save('invoice.pdf');
         });
 
+        // Function to extract product data from the table
         function getProductTableData() {
-            let data = [];
-            $('#product_table_body tr').each(function () {
-                let row = [];
-                $(this).find('td').each(function () {
-                    row.push($(this).text());
+            const data = [];
+            const rows = document.querySelectorAll('#product_table_body tr'); // Select all rows
+        
+            rows.forEach(row => {
+                const rowData = [];
+                const cells = row.querySelectorAll('td'); // Select all cells in the row
+                cells.forEach(cell => {
+                    rowData.push(cell.textContent.trim()); // Get cell text
                 });
-                data.push(row);
+                data.push(rowData);
             });
+        
             return data;
         }
 
+        // Function to calculate the total amount dynamically
+        function calculateTotalAmount() {
+            let total = 0;
+            const rows = document.querySelectorAll('#product_table_body tr'); // Select all rows
+        
+            rows.forEach(row => {
+                const amountCell = row.querySelector('td:nth-child(4)'); // Select the amount column
+                if (amountCell) {
+                    const amount = parseFloat(amountCell.textContent.replace('$', '')) || 0; // Remove '$' and parse
+                    total += amount; // Add to total
+                }
+            });
+        
+            return total;
+        }
+
+
+        // Load Last Invoice
+        document.getElementById('load_last_invoice').addEventListener('click', async function () {
+            const clientId = document.getElementById('client_name').value;
+            try {
+                // Send GET request with query parameters
+                const response = await fetch(`/get_last_sale/${userId}?client=${encodeURIComponent(clientId)}&limit=1`, {
+                    method: 'GET',
+                });
+            
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+            
+                const data = await response.json();
+            
+                if (data.success) {
+                    // Clear current table
+                    const productTableBody = document.getElementById('product_table_body');
+                    productTableBody.innerHTML = '';
+                    let totalAmount = 0;
+                
+                    // Find client name and set dropdown
+                    const clientOption = document.querySelector(`#client_name option[value="${data.sale_data.client}"]`);
+                    const clientName = clientOption ? clientOption.textContent : '';
+                
+                    const clientNameInput = document.getElementById('client_name');
+                    clientNameInput.value = data.sale_data.client;
+                    clientNameInput.disabled = true;
+                    clientNameInput.classList.add('locked-select');
+                
+                    // Set the sale_id for editing sales data
+                    const saveInvoiceButton = document.getElementById('save_invoice');
+                    saveInvoiceButton.dataset.saleId = data.sale_data.sale_id;
+                    saveInvoiceButton.textContent = 'Update Invoice';
+                    saveInvoiceButton.classList.add('edit-mode');
+                
+                    // Load products
+                    data.sale_data.products.forEach(product => {
+                        const row = document.createElement('tr');
+                        row.innerHTML = `
+                            <td>${product.product_name}</td>
+                            <td>${product.quantity}</td>
+                            <td>$${parseFloat(product.price).toFixed(2)}</td>
+                            <td>$${(product.quantity * product.price).toFixed(2)}</td>
+                            <td>
+                                <button class="delete-row" style="background-color: red; color: white;">
+                                    Delete
+                                </button>
+                            </td>
+                        `;
+                        productTableBody.appendChild(row);
+                        
+                        totalAmount += (product.quantity * product.price);
+                    });
+                
+                    // Update total amount
+                    document.getElementById('total_amount').textContent = `$${totalAmount.toFixed(2)}`;
+
+                    if (!document.getElementById('new_invoice')) {
+                        var newInvoiceButton = document.createElement('button');
+                        newInvoiceButton.id = 'new_invoice';
+                        newInvoiceButton.classList.add('btn', 'btn-secondary', 'ml-2');
+                        newInvoiceButton.textContent = 'New Invoice';
+
+                        // Find the save invoice button and insert the new button after it
+                        saveInvoiceButton.parentNode.insertBefore(newInvoiceButton, saveInvoiceButton.nextSibling);
+                    }
+                } else {
+                    alert(data.message);
+                }
+            } catch (error) {
+                console.error('Error loading last invoice:', error);
+                alert('Error loading last invoice.');
+            }
+        });
+
+        document.addEventListener('click', function (event) {
+            if (event.target && event.target.id === 'new_invoice') {
+                // Reset form to new invoice state
+                clearInvoice();
+            
+                // Enable the client name field and remove the "locked-select" class
+                var clientNameField = document.getElementById('client_name');
+                clientNameField.disabled = false;
+                clientNameField.classList.remove('locked-select');
+            
+                // Update the "Save Invoice" button
+                var saveInvoiceButton = document.getElementById('save_invoice');
+                saveInvoiceButton.textContent = 'Save Invoice';
+                saveInvoiceButton.classList.remove('edit-mode');
+                saveInvoiceButton.removeAttribute('data-sale-id');
+            
+                // Remove the "New Invoice" button
+                event.target.remove();
+            }
+        });
+
+
+        // Signature //
+        
+        // Get the canvas and context
+        const canvas = document.getElementById('signature-pad');
+        const context = canvas.getContext('2d');
+
+        // Set up mouse and touch event handlers
+        let isDrawing = false;
+
+        canvas.addEventListener('mousedown', startDrawing);
+        canvas.addEventListener('mousemove', draw);
+        canvas.addEventListener('mouseup', stopDrawing);
+        canvas.addEventListener('mouseout', stopDrawing);
+
+        canvas.addEventListener('touchstart', startDrawing);
+        canvas.addEventListener('touchmove', draw);
+        canvas.addEventListener('touchend', stopDrawing);
+        canvas.addEventListener('touchcancel', stopDrawing);
+
+        // Functions to handle drawing
+        function startDrawing(e) {
+            isDrawing = true;
+            context.beginPath();
+            const coords = getCoordinates(e);
+            context.moveTo(coords.x, coords.y);
+        }
+
+        function draw(e) {
+            if (!isDrawing) return;
+            const coords = getCoordinates(e);
+            context.lineTo(coords.x, coords.y);
+            context.stroke();
+        }
+
+        function stopDrawing() {
+            if (!isDrawing) return;
+            isDrawing = false;
+            context.closePath();
+        }
+
+        // Helper function to get mouse/touch coordinates
+        function getCoordinates(e) {
+            let x, y;
+            if (e.touches) {
+                x = e.touches[0].clientX - canvas.offsetLeft;
+                y = e.touches[0].clientY - canvas.offsetTop;
+            } else {
+                x = e.clientX - canvas.offsetLeft;
+                y = e.clientY - canvas.offsetTop;
+            }
+            return { x, y };
+        }
+
+        // Clear button functionality
+        document.getElementById('clear-signature').addEventListener('click', () => {
+            context.clearRect(0, 0, canvas.width, canvas.height);
+        });
+
+    
     </script>
 
 </body>
