@@ -1,7 +1,11 @@
 from flask import render_template, request, redirect, url_for, session, jsonify
-from .services import Services
-from .common_services import CommonServices
 from datetime import datetime
+from pydantic import ValidationError
+
+from .services import Services
+from .constants import ErrorMessages
+from .common_services import CommonServices
+from .schemas import RegularProductsRequest
 
 def define_routes(app):
     """Define all application routes."""
@@ -50,6 +54,21 @@ def define_routes(app):
             data = request.get_json()
             client_id = data.get('client_id')
             return services.delete_client(client_id)
+        
+
+        ### Regular ###
+
+        #supplier Add Client's regular
+        @app.route('/supplier/<int:user_id>/add_regular', methods = ['GET','POST'])
+        def add_regular(user_id):
+            try:
+                # Validate and parse request JSON
+                data = RegularProductsRequest.model_validate(request.get_json())
+                return services.add_regular_products(user_id, data.model_dump())
+        
+            except ValidationError as e:
+                print(f"Exception in add_regular : {str(e)}")
+                return jsonify({"message": ErrorMessages.UPDATE_REGULAR_PRODUCTS}), 500
         
         ### Route ###
 
@@ -113,7 +132,7 @@ def define_routes(app):
         def update_sales(user_id):
             print("hj")
 
-        
+        ### Daily Route ###
         
         # Supplier daily route
         @app.route('/supplier/<int:user_id>/daily_route', methods=['GET','POST'])
@@ -124,6 +143,11 @@ def define_routes(app):
         @app.route('/supplier/<int:user_id>/daily_route/select_route', methods=['GET','POST'])
         def select_route(user_id):
             return services.select_route(user_id)
+        
+        @app.route('/fetch_daily_clients/<int:user_id>', methods=['GET','POST'])
+        def fetch_daily_clients(user_id):
+            data = request.get_json()
+            return services.fetch_daily_clients(user_id, data)
 
     
     except Exception as e:

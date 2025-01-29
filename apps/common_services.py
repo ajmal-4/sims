@@ -1,7 +1,7 @@
 from flask import jsonify
 from .db import db
 from pymongo import DESCENDING
-from .constants import SuccessMessages, ERRORMESSAGES, Projections, PaymentStatus
+from .constants import SuccessMessages, ErrorMessages, Projections, PaymentStatus
 
 class CommonServices:
 
@@ -11,6 +11,7 @@ class CommonServices:
         self.products = db.get_collection('products')
         self.sales = db.get_collection('sales')
         self.users = db.get_collection('users')
+        self.regulars = db.get_collection('regulars')
 
     # For authenticating the user - returns the user_type if the user is valid else returns None
     def authenticate_user(self, username, password):
@@ -63,16 +64,8 @@ class CommonServices:
         """ Retrieves all routes from the database """
         """ Each route will have unique route_no and clients """
         try:
-            
-            # Uncomment if not connected to mongo db 
-            # routes = [
-            #     {"route_no":"1","supplier":"123","clients":["client_1","client_2"]},
-            #     {"route_no":"2","supplier":"321","clients":["client_3","client_4"]}
-            # ]
 
             routes = list(self.routes.find())
-            print("routes", routes)
-
             return routes
 
         except Exception as e:
@@ -119,9 +112,15 @@ class CommonServices:
     
     def get_clients_by_routes(self, user_id, selected_routes):
         try:
-            return list(self.clients.find({"supplier": str(user_id), "route_no": {"$in": selected_routes}}))
+            
+            return list(self.clients.find(
+                {"supplier": str(user_id), "route_no": {"$in": selected_routes}},
+                Projections.EXCLUDE_ID
+            ))
+    
         except Exception as e:
-            pass
+            print(f"Exception in get_supplier_clients : {str(e)}")
+            return None
         
     
     # # # Products # # #
@@ -280,11 +279,11 @@ class CommonServices:
             if result.inserted_id:
                 return jsonify({"success": True, "message": SuccessMessages.ADD_INVOICE}), 201
             else:
-                return jsonify({"success": False, "message": ERRORMESSAGES.ADD_INVOICE}), 500
+                return jsonify({"success": False, "message": ErrorMessages.ADD_INVOICE}), 500
             
         except Exception as e:
             print(f"Exception in save_invoice_to_db : {str(e)}")
-            return jsonify({"message": ERRORMESSAGES.ADD_INVOICE}), 500
+            return jsonify({"message": ErrorMessages.ADD_INVOICE}), 500
     
     
     def save_transaction_to_db(self, sales_data):
@@ -360,4 +359,20 @@ class CommonServices:
             print(f"Exception in edit_client_from_db : {str(e)}")
             return False
 
+    def add_regulars_products_to_db(self, regular_data):
+        try:
+            
+            result = self.regulars.update_one(
+                {"regular_id": str(regular_data.get("regular_id"))},
+                {"$set": regular_data},
+                upsert=True
+            )
 
+            if result.matched_count > 0 or result.upserted_id is not None:
+                return True
+            else:
+                return False
+
+        except Exception as e:
+            print(f"Exception in edit_client_from_db : {str(e)}")
+            return False

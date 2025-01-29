@@ -10,15 +10,18 @@ class SuccessMessages:
     DELETE_CLIENT = 'Client deleted successfully'
     EDIT_CLIENT = 'Client updated successfully'
     ADD_INVOICE = 'Invoice saved successfully!'
+    UPDATE_REGULAR_PRODUCTS = "Client regular product details updated successfully"
 
 
-class ERRORMESSAGES:
+class ErrorMessages:
     ADD_CLIENT = 'Could not add the client at the moment'
     EDIT_CLIENT = 'Could not update the client at the moment'
     DELETE_CLIENT = 'Could not delete the client at the moment'
     ADD_INVOICE = 'Could not save the invoice at the moment'
     FETCH_LAST_SALES_DATA = 'Invoice does not found for the client'
     FETCH_RECENT_SALES_DATA = 'Recent Invoices does not found for the client'
+    FETCH_CLIENTS = "Failed to fetch clients"
+    UPDATE_REGULAR_PRODUCTS = "Error updating client regular products"
 
 class Limits:
     LAST_SALE_DATA_LIMIT = 1

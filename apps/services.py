@@ -1,7 +1,7 @@
 from datetime import datetime
 from .common_services import CommonServices
 from flask import Flask, request, render_template, redirect, url_for, session, jsonify
-from .constants import HTMLPAGES, ERRORMESSAGES, SuccessMessages, Limits
+from .constants import HTMLPAGES, ErrorMessages, SuccessMessages, Limits
 
 class Services:
     def __init__(self) -> None:
@@ -78,6 +78,7 @@ class Services:
             if request.method == 'POST':
 
                 client_name = str(data.get('client_name'))
+                client_phone = str(data.get('client_phone'))
                 client_place = str(data.get('client_place'))
                 route_no = str(data.get('route_no'))
 
@@ -92,6 +93,7 @@ class Services:
                 client_data = {
                     "client_id": client_id,
                     "name": client_name,
+                    "phone_no": client_phone,
                     "place": client_place,
                     "route_no": route_no,
                     "status": status,
@@ -108,11 +110,11 @@ class Services:
                         del client_data['_id']
                         return jsonify(client_data), 200
                 else:
-                    return ERRORMESSAGES.ADD_CLIENT, 500
+                    return ErrorMessages.ADD_CLIENT, 500
 
         except Exception as e:
             print(f"Exception in add_client : {str(e)}")
-            return ERRORMESSAGES.ADD_CLIENT, 500
+            return ErrorMessages.ADD_CLIENT, 500
     
     
     def edit_client(self, client_data):
@@ -131,11 +133,11 @@ class Services:
             if success:
                 return jsonify({"message": SuccessMessages.EDIT_CLIENT}), 200
             else:
-                return jsonify({"message": ERRORMESSAGES.EDIT_CLIENT}), 500
+                return jsonify({"message": ErrorMessages.EDIT_CLIENT}), 500
         
         except Exception as e:
             print(f"Exception in edit_client : {str(e)}")
-            return jsonify({"message": ERRORMESSAGES.EDIT_CLIENT}), 500
+            return jsonify({"message": ErrorMessages.EDIT_CLIENT}), 500
     
     
     def delete_client(self, client_id):
@@ -145,11 +147,32 @@ class Services:
             if success:
                 return jsonify({"message": SuccessMessages.DELETE_CLIENT}), 200
             else:
-                return jsonify({"message": ERRORMESSAGES.DELETE_CLIENT}), 500
+                return jsonify({"message": ErrorMessages.DELETE_CLIENT}), 500
 
         except Exception as e:
             print(f"Exception in delete_client : {str(e)}")
-            return jsonify({"message": ERRORMESSAGES.DELETE_CLIENT}), 500
+            return jsonify({"message": ErrorMessages.DELETE_CLIENT}), 500
+    
+    def add_regular_products(self, user_id, data):
+        try:
+            regular_id = f"regular_{self.common_service.generate_unique_id('regulars')}"
+
+            regular_data = {
+                "regular_id": regular_id,
+                "client_id": data.get("client_id"),
+                "products": data.get("products"),
+                "supplier": str(user_id)
+            }
+
+            success = self.common_service.add_regulars_products_to_db(regular_data)
+            if success:
+                return jsonify({"message": SuccessMessages.UPDATE_REGULAR_PRODUCTS}), 200
+            else:
+                return jsonify({"message": ErrorMessages.UPDATE_REGULAR_PRODUCTS}), 500
+
+        except Exception as e:
+            print(f"Exception in add_regular_products : {str(e)}")
+            return jsonify({"message": ErrorMessages.UPDATE_REGULAR_PRODUCTS}), 500
     
     def add_route(self, user_id):
         try:
@@ -271,14 +294,14 @@ class Services:
                 if data:
                     return jsonify({"success": True, "sale_data": data}), 200
                 else:
-                    return jsonify({"success": False, "message": ERRORMESSAGES.FETCH_LAST_SALES_DATA}), 404
+                    return jsonify({"success": False, "message": ErrorMessages.FETCH_LAST_SALES_DATA}), 404
             
             else:
                 data = self.common_service.get_supplier_recent_sales_data(query, Limits.RECENT_SALE_DATA_LIMIT)
                 if data:
                     return jsonify({"success": True, "sale_data": data}), 200
                 else:
-                    return jsonify({"success": False, "message": ERRORMESSAGES.FETCH_RECENT_SALES_DATA}), 404
+                    return jsonify({"success": False, "message": ErrorMessages.FETCH_RECENT_SALES_DATA}), 404
 
         except Exception as e:
             print(f"Exception in get_last_sales : {str(e)}")
@@ -289,6 +312,8 @@ class Services:
             # Retrieve all the routes
             routes = self.common_service.get_supplier_routes(user_id)
             clients = self.common_service.get_supplier_clients(user_id)
+            products = self.common_service.get_supplier_products(user_id)
+            sales = self.common_service.get_supplier_sales(user_id)
             # The current date
             selected_date = datetime.now().strftime("%Y-%m-%d")
             selected_routes = []
@@ -309,8 +334,11 @@ class Services:
             return render_template(
                 "supplier_home.html",
                 user_id=user_id,
+                user_name=session.get('user_name'),
                 routes=routes,
                 clients=clients,
+                sales=sales,
+                products=products,
                 selected_date=selected_date,
                 selected_routes=selected_routes,
                 filtered_clients=filtered_clients
@@ -324,3 +352,20 @@ class Services:
             return self.daily_route(user_id)
         except Exception as e:
             print(f"Exception in select_route : {str(e)}")
+    
+    def fetch_daily_clients(self, user_id, data):
+        try:
+
+            selected_routes = data.get('routes')
+
+            if selected_routes:
+                filtered_clients = self.common_service.get_clients_by_routes(user_id, selected_routes)
+            # need to update else condition
+
+            if filtered_clients:
+                return jsonify({"success": True, "clients": filtered_clients}), 200
+            else:
+                return jsonify({"success": False, "message": ErrorMessages.FETCH_CLIENTS}), 404
+
+        except Exception as e:
+            print(f"Exception in fetch_daily_clients : {str(e)}")

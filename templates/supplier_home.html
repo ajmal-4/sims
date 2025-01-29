@@ -210,55 +210,54 @@
 
 
     <div class="content">
-        <!-- Daily Route -->
+
+        <!-- ===================================================== -->
+        <!--                    Daily Route                        -->
+        <!-- ===================================================== -->
+
         <div id="daily-route" class="visible">
             <h2>Daily Route Section</h2>
 
             <button onclick="openModal('dailyRouteModal')">Select Route</button>
+            
+            <!-- Select Date and Route Modal -->
             <div id="dailyRouteModal" class="modal">
                 <div class="modal-content">
                     <span class="close" onclick="closeModal('dailyRouteModal')">&times;</span>
                     <div class="modal-header">Select date and daily route</div>
-                    <form method="POST" action="{{ url_for('select_route', user_id=user_id) }}">
-                        <label for="date">Date:</label>
-                        <input type="date" id="date" name="date" value="{{ selected_date }}" required>
-                        
-                        <label for="routes">Select Routes:</label>
-                        <select id="routes" name="routes" multiple size="5" required>
-                            {% for route in routes %}
-                                <option value="{{ route.route_no }}" {% if route.route_no in selected_routes %}selected{% endif %}>
-                                    Route {{ route.route_no }}
-                                </option>
-                            {% endfor %}
-                        </select>
-                        <p>Hold down the Ctrl (Windows) / Command (Mac) key to select multiple routes.</p>
-                        <button type="submit">Show Clients</button>
-                    </form>
+
+                    <label for="date">Date:</label>
+                    <input type="date" id="date" value="{{ selected_date }}" required>
+
+                    <label for="routes">Select Routes:</label>
+                    <select id="routes" multiple size="5" required>
+                        {% for route in routes %}
+                            <option value="{{ route.route_no }}" {% if route.route_no in selected_routes %}selected{% endif %}>
+                                Route {{ route.route_no }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                    <p>Hold down the Ctrl (Windows) / Command (Mac) key to select multiple routes.</p>
+                    <button type="button" onclick="fetchDailyClients()">Show Clients</button>
                 </div>
             </div>
-     
-        
-            <h3>Clients for Routes {{ selected_routes | join(', ') or 'N/A' }} on {{ selected_date }}</h3>
-            {% if filtered_clients %}
-                <div class="client-list">
-                    <ul>
-                        {% for client in filtered_clients %}
-                            <li>
-                                <strong>{{ client.name }}</strong> 
-                                (Place: {{ client.place }}, Debt: {{ client.debt }})
-                            </li>
-                        {% endfor %}
-                    </ul>
-                </div>
-            {% else %}
-                <p>No clients available for the selected routes and date.</p>
-            {% endif %}
+            
+            <!-- Display list of clients in selected routes -->
+            <h3>Clients for Routes <span id="route-info">{{ selected_routes | join(', ') or 'N/A' }}</span> on <span id="selected-date">{{ selected_date }}</span></h3>
+            <div id="client-list-container" class="client-list" style="display: none;">
+                <!-- Clients will be displayed here -->
+            </div>
+
         </div>
 
 
-        <!-- Clients Section -->
+        <!-- ===================================================== -->
+        <!--                       Clients                         -->
+        <!-- ===================================================== -->
+
         <div id="clients" class="hidden">
             <h2>Clients</h2>
+
             <button onclick="openModal('clientModal')">Add Client</button>
 
             <!-- Add Client Modal -->
@@ -269,6 +268,9 @@
                     <div id="add-client-form">
                         <label for="add_client_name">Client Name:</label>
                         <input type="text" id="add_client_name" name="client_name" required><br><br>
+
+                        <label for="add_client_phone">Client Phone No:</label>
+                        <input type="text" id="add_client_phone" name="client_phone"><br><br>
 
                         <label for="add_client_place">Client Place:</label>
                         <input type="text" id="add_client_place" name="client_place" required><br><br>
@@ -281,6 +283,7 @@
                 </div>
             </div>
 
+            <!-- Display list of all clients -->
             <div class="client-list">
                 {% if clients %}
 
@@ -310,6 +313,7 @@
 
         <!-- Client Profile -->
         <div id="client-profile" class="hidden">
+
             <!-- back button in client profile -->
             <button class="back-btn">Back</button>
 
@@ -325,19 +329,13 @@
                 style="color: rgb(16, 234, 48); margin-left: 10px;">
                 Edit
             </button>
-            
-            <!-- delete button in client profile -->
-            <button 
-                class="delete-client-btn"
-                style="color: red; margin-left: 10px;">
-                Delete
-            </button>
 
+            <!-- edit client modal -->
             <div id="editClientModal" class="modal">
                 <div class="modal-content">
                     <span class="close" onclick="closeModal('editClientModal')">&times;</span>
                     <div class="modal-header">Edit Client</div>
-                    <div class="edit-form">
+                    <div class="edit-client-form">
                         <input type="hidden" id="edit_client_id">
                         
                         <label for="edit_client_name">Client Name:</label>
@@ -354,13 +352,77 @@
                 </div>
             </div>
 
+            <!-- Add client regular button in client profile -->
+            <button 
+                class="add-client-regular-btn"
+                style="color: rgb(0, 17, 255); margin-left: 10px;">
+                Add Regular
+            </button>
+
+            <!-- Add client regular modal -->
+            <div id="addClientRegulars" class="modal">
+                <div class="modal-content">
+                    <span class="close" onclick="closeModal('addClientRegulars')">&times;</span>
+                    <div class="modal-header">Add Regular Products</div>
+                    <div class="add-regular-products-form">
+                        <input type="hidden" id="client_id">
+                        
+                        <!-- Product List -->
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Product</th>
+                                    <th>Quantity</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for product in products %}
+                                <tr>
+                                    <td>
+                                        <label>
+                                            <input type="checkbox" name="product_ids" value="{{ product.product_id }}">
+                                            {{ product.product_name }}
+                                        </label>
+                                    </td>
+                                    <td>
+                                        <input
+                                            type="number"
+                                            id="qty_{{ product.product_id }}"
+                                            name="qty_{{ product.product_id }}"
+                                            min="1"
+                                            placeholder="Enter qty"
+                                            disabled
+                                        >
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+
+                        <button type="button" onclick="submitRegularProducts()">Save</button>
+
+                    </div>
+                </div>
+            </div>
+
+            <!-- delete button in client profile -->
+            <button 
+                class="delete-client-btn"
+                style="color: red; margin-left: 10px;">
+                Delete
+            </button>
+
         </div>
 
 
-        <!-- Routes Section -->
+        <!-- ===================================================== -->
+        <!--                       Routes                          -->
+        <!-- ===================================================== -->
         <div id="all-routes" class="hidden">
             <h2>Routes</h2>
+
             <button onclick="openModal('routeModal')">Add Route</button>
+            
             <!-- Add Route Modal -->
             <div id="routeModal" class="modal">
                 <div class="modal-content">
@@ -450,6 +512,7 @@
 
     <script>
 
+        // Define the supplier id 
         var user_id = "{{ user_id }}";
 
         // Show the main sections
@@ -478,7 +541,6 @@
             document.getElementById(modalId).style.display = "none";
         }
 
-
         // Close modal if clicked outside of it
         window.onclick = function(event) {
             var modals = document.getElementsByClassName("modal");
@@ -495,9 +557,13 @@
             window.location.href = `/supplier/${userId}/sales`;
         }
 
+        // =========================================================//
+        //                      Client Section                      //
+        // =========================================================//
+
         // Show Client Profile
         function showClientProfile(clientId, name, place, routeNo, debt) {
-            // Display the client profile section
+            
             const profileDiv = document.getElementById('client-profile');
         
             // Set data attributes on the profile div
@@ -516,9 +582,11 @@
             // Set data attributes for both buttons
             const deleteButton = profileDiv.querySelector('.delete-client-btn');
             const editButton = profileDiv.querySelector('.edit-client-btn');
+            const addRegularButton = profileDiv.querySelector('.add-client-regular-btn')
             
             deleteButton.setAttribute('data-client-id', clientId);
             editButton.setAttribute('data-client-id', clientId);
+            addRegularButton.setAttribute('data-client-id', clientId);
         
             showSection('client-profile');
         }
@@ -537,6 +605,7 @@
                 const debt = listItem.getAttribute('data-client-debt');
                 showClientProfile(clientId, name, place, routeNo, debt);
             }
+
         });
 
         // Open Edit client modal 
@@ -548,6 +617,165 @@
             document.getElementById('edit_route_no').value = routeNo;
             
             openModal('editClientModal');
+        }
+
+        // Edit client
+        function submitEditClient() {
+            const clientId = document.getElementById('edit_client_id').value;
+            const updatedData = {
+                client_id: clientId,
+                name: document.getElementById('edit_client_name').value,
+                place: document.getElementById('edit_client_place').value,
+                route_no: document.getElementById('edit_route_no').value
+            };
+        
+            fetch(`/supplier/${user_id}/edit_client`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(updatedData)
+            })
+            .then(response => {
+                print(response)
+                if (response.ok) {
+                    // Update the client list
+                    const listItem = document.querySelector(`li[data-client-id="${clientId}"]`);
+                    if (listItem) {
+                        listItem.setAttribute('data-client-name', updatedData.name);
+                        listItem.setAttribute('data-client-place', updatedData.place);
+                        listItem.setAttribute('data-client-route', updatedData.route_no);
+                        listItem.innerHTML = `
+                            <strong>${updatedData.name}</strong>
+                            Place: ${updatedData.place}, Route No: ${updatedData.route_no}, Debt: ${listItem.getAttribute('data-client-debt')}
+                        `;
+                    }
+                
+                    // Update the profile if it's currently displayed
+                    const profileDiv = document.getElementById('client-profile');
+                    profileDiv.setAttribute('data-client-name', updatedData.name);
+                    profileDiv.setAttribute('data-client-place', updatedData.place);
+                    profileDiv.setAttribute('data-client-route', updatedData.route_no);
+                
+                    document.getElementById('client-name').innerText = `Name: ${updatedData.name}`;
+                    document.getElementById('client-place').innerText = `Place: ${updatedData.place}`;
+                    document.getElementById('client-route').innerText = `Route No: ${updatedData.route_no}`;
+                
+                    closeModal('editClientModal');
+                    
+                    alert("Client updated successfully!");
+                } else {
+                    alert("Failed to update the client. Please try again.");
+                }
+            })
+            .catch(error => {
+                alert("An error occurred while updating the client.");
+            });
+        }
+
+        // Open add regular products modal
+        function addRegularProducts(clientId) {
+            openModal('addClientRegulars');
+        }
+
+        // Enable/Disable Quantity Input in Add regular products modal
+        document.querySelectorAll("input[name='product_ids']").forEach(checkbox => {
+            checkbox.addEventListener("change", function () {
+                const qtyInput = document.querySelector(`#qty_${this.value}`);
+                if (this.checked) {
+                    qtyInput.disabled = false;
+                } else {
+                    qtyInput.disabled = true;
+                    qtyInput.value = ""; // Clear the value if unchecked
+                }
+            });
+        });
+
+        // Add / update regular products
+        function submitRegularProducts() {
+            
+            const clientId = document.getElementById('client-profile').getAttribute('data-client-id');
+            const selectedProducts = [];
+            
+            const productCheckboxes = document.querySelectorAll("input[name='product_ids']");
+
+            productCheckboxes.forEach(checkbox => {
+                if (checkbox.checked) {
+                    const productId = checkbox.value;
+                    const quantityInput = document.querySelector(`#qty_${productId}`);
+                    const quantity = parseInt(quantityInput.value);
+
+                    if (!quantity || quantity < 1) {
+                        alert('Please enter a valid quantity for all selected products');
+                        return;
+                    }
+
+                    selectedProducts.push({
+                        product_id: productId,
+                        quantity: quantity
+                    });
+                }
+            });
+
+            if (selectedProducts.length === 0) {
+                alert('Please select at least one product');
+                return;
+            }
+
+            const data = {
+                client_id: clientId,
+                products: selectedProducts
+            };
+
+            console.log("data is ", data);
+
+            fetch(`/supplier/${user_id}/add_regular`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(data)
+            })
+            .then(response => {
+                if (response.ok) {
+                    alert("Saved the client's regular product data")
+                    closeModal('addClientRegulars');    
+                } else {
+                    alert("Failed to update client's regular products");
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Failed to add regular products. Please try again.');
+            });
+        }
+
+        // Delete client
+        function deleteClient(clientId) {
+            if (confirm("Are you sure you want to delete this client?")) {
+                fetch(`/supplier/${user_id}/delete_client`, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({ client_id: clientId }),
+                })
+                .then(response => {
+                    if (response.ok) {
+                        const listItem = document.querySelector(`li[data-client-id="${clientId}"]`);
+                        if (listItem) {
+                            listItem.remove();
+                        }
+                    
+                    } else {
+                        alert("Failed to delete the client. Please try again.");
+                    }
+                })
+                .catch(error => {
+                    console.error("Error:", error);
+                    alert("An error occurred while deleting the client.");
+                });
+            }
         }
 
         // Event listener in client-profile
@@ -570,6 +798,12 @@
                 );
             }
 
+            // handle add regular product button click in client-profile
+            if (target.classList.contains('add-client-regular-btn')) {
+                const clientId = target.getAttribute('data-client-id');
+                addRegularProducts(clientId)
+            }
+
             // Handle delete button click in client-profile
             if (target.classList.contains('delete-client-btn')) {
                 const clientId = target.getAttribute('data-client-id');
@@ -584,6 +818,7 @@
             // Collect input data from the div
             const clientData = {
                 client_name: document.getElementById('add_client_name').value,
+                client_phone: document.getElementById('add_client_phone').value,
                 client_place: document.getElementById('add_client_place').value,
                 route_no: document.getElementById('add_route_no').value
             };
@@ -624,6 +859,7 @@
                 
                     // Reset input fields
                     document.getElementById('add_client_name').value = '';
+                    document.getElementById('add_client_phone').value = '';
                     document.getElementById('add_client_place').value = '';
                     document.getElementById('add_route_no').value = '';
                 })
@@ -631,86 +867,70 @@
                     alert('An error occurred while adding the client.');
                 });
         }
-        
-        // Edit client
-        function submitEditClient() {
-            const clientId = document.getElementById('edit_client_id').value;
-            const updatedData = {
-                client_id: clientId,
-                name: document.getElementById('edit_client_name').value,
-                place: document.getElementById('edit_client_place').value,
-                route_no: document.getElementById('edit_route_no').value
+
+        // =========================================================//
+        //                      Daily Route                         //
+        // =========================================================//
+
+        function fetchDailyClients() {
+            const selectedDate = document.getElementById('date').value;
+            const selectedRoutes = Array.from(document.getElementById('routes').selectedOptions)
+                                        .map(option => option.value);
+            
+            if (!date || routes.length === 0) {
+                alert('Please select a date and at least one route.');
+                return;
+            }
+
+            // Prepare data to send in the request
+            const data = {
+                date: selectedDate,
+                routes: selectedRoutes
             };
-        
-            fetch(`/supplier/${user_id}/edit_client`, {
+
+            // Make the AJAX request
+            fetch(`/fetch_daily_clients/${user_id}`, {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json',
+                    'Content-Type': 'application/json'
                 },
-                body: JSON.stringify(updatedData)
+                body: JSON.stringify(data) 
             })
             .then(response => {
+                console.log("response is ",response);
                 if (response.ok) {
-                    // Update the client list
-                    const listItem = document.querySelector(`li[data-client-id="${clientId}"]`);
-                    if (listItem) {
-                        listItem.setAttribute('data-client-name', updatedData.name);
-                        listItem.setAttribute('data-client-place', updatedData.place);
-                        listItem.setAttribute('data-client-route', updatedData.route_no);
-                        listItem.innerHTML = `
-                            <strong>${updatedData.name}</strong>
-                            Place: ${updatedData.place}, Route No: ${updatedData.route_no}, Debt: ${listItem.getAttribute('data-client-debt')}
-                        `;
-                    }
-                
-                    // Update the profile if it's currently displayed
-                    const profileDiv = document.getElementById('client-profile');
-                    profileDiv.setAttribute('data-client-name', updatedData.name);
-                    profileDiv.setAttribute('data-client-place', updatedData.place);
-                    profileDiv.setAttribute('data-client-route', updatedData.route_no);
-                
-                    document.getElementById('client-name').innerText = `Name: ${updatedData.name}`;
-                    document.getElementById('client-place').innerText = `Place: ${updatedData.place}`;
-                    document.getElementById('client-route').innerText = `Route No: ${updatedData.route_no}`;
-                
-                    closeModal('editClientModal');
-                    
-                    alert("Client updated successfully!");
+                    return response.json();
                 } else {
-                    alert("Failed to update the client. Please try again.");
+                    throw new Error('Failed to fetch clients');
                 }
             })
+            .then(data => {
+                // Update the selected routes info
+                document.getElementById('route-info').textContent = selectedRoutes.join(', ') || 'N/A';
+                document.getElementById('selected-date').textContent = selectedDate;
+
+                // Display the clients
+                const clientListContainer = document.getElementById('client-list-container');
+                if (data.clients && data.clients.length > 0) {
+                    let html = '<ul>';
+                    data.clients.forEach(client => {
+                        html += `<li><strong>${client.name}</strong> (Place: ${client.place}, Debt: ${client.debt})</li>`;
+                    });
+                    html += '</ul>';
+                    clientListContainer.innerHTML = html;
+                } else {
+                    clientListContainer.innerHTML = '<p>No clients available for the selected routes and date.</p>';
+                }
+
+                // show client list
+                clientListContainer.style.display = 'block';
+
+                // close modal
+                closeModal('dailyRouteModal');
+            })
             .catch(error => {
-                alert("An error occurred while updating the client.");
+                console.error('Error fetching clients:', error);
             });
-        }
-    
-        // Delete client
-        function deleteClient(clientId) {
-            if (confirm("Are you sure you want to delete this client?")) {
-                fetch(`/supplier/${user_id}/delete_client`, {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                    },
-                    body: JSON.stringify({ client_id: clientId }),
-                })
-                .then(response => {
-                    if (response.ok) {
-                        const listItem = document.querySelector(`li[data-client-id="${clientId}"]`);
-                        if (listItem) {
-                            listItem.remove();
-                        }
-                    
-                    } else {
-                        alert("Failed to delete the client. Please try again.");
-                    }
-                })
-                .catch(error => {
-                    console.error("Error:", error);
-                    alert("An error occurred while deleting the client.");
-                });
-            }
         }
 
     </script>
