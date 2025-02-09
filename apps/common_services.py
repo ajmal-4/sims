@@ -1,7 +1,7 @@
 from flask import jsonify
 from .db import db
 from pymongo import DESCENDING
-from .constants import SuccessMessages, ErrorMessages, Projections, PaymentStatus
+from .constants import SuccessMessages, ErrorMessages, Projections, PaymentStatus, TransactionType, Limits
 
 class CommonServices:
 
@@ -10,6 +10,7 @@ class CommonServices:
         self.routes = db.get_collection('routes')
         self.products = db.get_collection('products')
         self.sales = db.get_collection('sales')
+        self.transactions = db.get_collection('transactions')
         self.users = db.get_collection('users')
         self.regulars = db.get_collection('regulars')
 
@@ -187,11 +188,17 @@ class CommonServices:
             print(f"Exception in get_sales_list : {str(e)}")
             return None
     
-    def get_supplier_sales(self, supplier_id):
+    def get_supplier_sales(self, supplier_id, **kwargs):
         """ Returns all the sales data of the supplier """
         try:
+            query = {"supplier": str(supplier_id)}
 
-            supplier_sales_list = list(self.sales.find({"supplier": str(supplier_id)}))
+            if kwargs.get("limit"):
+                limit = kwargs.get("limit")
+                supplier_sales_list = list(self.sales.find(query, Projections.EXCLUDE_ID).sort("date", DESCENDING).limit(limit))
+            else:
+                supplier_sales_list = list(self.sales.find(query, Projections.EXCLUDE_ID))
+
             return supplier_sales_list
 
         except Exception as e:
@@ -276,57 +283,69 @@ class CommonServices:
     def save_sales_to_db(self, sales_data):
         try:
             result = self.sales.insert_one(sales_data)
-            if result.inserted_id:
-                return jsonify({"success": True, "message": SuccessMessages.ADD_INVOICE}), 201
-            else:
-                return jsonify({"success": False, "message": ErrorMessages.ADD_INVOICE}), 500
+            return bool(result.inserted_id)
             
         except Exception as e:
             print(f"Exception in save_invoice_to_db : {str(e)}")
-            return jsonify({"message": ErrorMessages.ADD_INVOICE}), 500
+            return False
     
-    
-    def save_transaction_to_db(self, sales_data):
+    def update_sales(self, sale_id, **kwargs):
         try:
-            sale_id = sales_data.get('sale_id', False)
-
-            paid_amount = sales_data.get('paid_amount', 0)
-            total_amount = sales_data.get('total_amount', 0)
-            debt = max(0, total_amount - paid_amount)
-            credit = max(0, paid_amount - total_amount)
-
-            if debt == 0 and credit == 0:
-                payment_status = PaymentStatus.SETTLED
-                additional_data = {}
-            elif debt > 0:
-                payment_status = PaymentStatus.PENDING
-                additional_data = {"debt": debt}
+            if kwargs.get("paid_amount"):
+                update_data = {"paid_amount": kwargs.get("paid_amount")}
             else:
-                payment_status = PaymentStatus.CREDITED
-                additional_data = {"credit": credit}
+                pass
+            
+            result = self.sales.update_one(
+                        {'sale_id': sale_id}, 
+                        {'$set': update_data}
+                    )
+            if result.modified_count > 0:
+                return True
+            else:
+                return False
+            
+        except Exception as e:
+            print(f"Exception in update_sales : {str(e)}")
+            return False
+    
+    
+    def  save_transaction_to_db(
+        self, 
+        transaction_type : TransactionType,
+        **kwargs
+    ):
+        """ save the transactions to db """
+        """ transactions can be either a sale or a cash credit """
+        """ for sale, inputs are transaction_type : 'sale' and transaction_type_id : 'sale_id' """
+        """ for cash credit transaction_type : 'credit' , transaction_type_id : 'credit_id' and receives 'amount' and 'date' as kwargs"""
+        try:
             
             transaction_id = self.generate_unique_id('transaction')
 
             transaction_data = {
-                "transaction_id": transaction_id,
-                "paid_amount": paid_amount,
-                "total_amount": total_amount,
-                "payment_status": payment_status.value,
-                **additional_data
+                "transaction_id" : transaction_id,
+                "transaction_type" : transaction_type.value
             }
 
+            sale_id = kwargs.get("sale_id", None)
+            if sale_id:
+                transaction_data["sale_id"] = sale_id
 
-            
+            amount = kwargs.get("amount", None)
+            date = kwargs.get("date", None)
+            client_id = kwargs.get("client", None)
+            supplier_id = kwargs.get("supplier", None)
 
+            if transaction_type == TransactionType.CREDIT and amount and date:
+                transaction_data["amount"] = amount
+                transaction_data["date"] = date
+                transaction_data["client"] = client_id
+                transaction_data["supplier"] = supplier_id
             
-
-
+            result = self.transactions.insert_one(transaction_data)
             
-
-            
-            
-            
-            
+            return bool(result)         
 
         except Exception as e:
             print(f"Exception in save_transaction_to_db : {str(e)}")
@@ -363,7 +382,7 @@ class CommonServices:
         try:
             
             result = self.regulars.update_one(
-                {"regular_id": str(regular_data.get("regular_id"))},
+                {"client_id": str(regular_data.get("client_id"))},
                 {"$set": regular_data},
                 upsert=True
             )
@@ -376,3 +395,23 @@ class CommonServices:
         except Exception as e:
             print(f"Exception in edit_client_from_db : {str(e)}")
             return False
+    
+    def get_regular_products_from_db(self, query):
+        try:
+            result = self.regulars.find_one(query, Projections.EXCLUDE_ID)
+            if result:
+                return result
+            else:
+                return False
+
+        except Exception as e:
+            print(f"Exception in get_regular_products_from_db : {str(e)}")
+            return False
+    
+    def fetch_client_payment_history(self, query):
+        try:
+            result = list(self.transactions.find(query, Projections.EXCLUDE_ID).sort("date", DESCENDING).limit(Limits.RECENT_SALE_DATA_LIMIT))
+            return result
+        
+        except Exception as e:
+            return None

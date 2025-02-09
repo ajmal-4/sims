@@ -11,6 +11,7 @@ class SuccessMessages:
     EDIT_CLIENT = 'Client updated successfully'
     ADD_INVOICE = 'Invoice saved successfully!'
     UPDATE_REGULAR_PRODUCTS = "Client regular product details updated successfully"
+    ADD_SALES_PAYMENT = "Updated payment information"
 
 
 class ErrorMessages:
@@ -22,10 +23,14 @@ class ErrorMessages:
     FETCH_RECENT_SALES_DATA = 'Recent Invoices does not found for the client'
     FETCH_CLIENTS = "Failed to fetch clients"
     UPDATE_REGULAR_PRODUCTS = "Error updating client regular products"
+    FETCH_REGULAR_PRODUCTS = "Could not fetch the regular products"
+    ADD_SALES_PAYMENT = "Failed to update sales payment"
+    FETCH_RECENT_MONEY_TRANSACTIONS = "Failed to fetch recent money transactions"
 
 class Limits:
     LAST_SALE_DATA_LIMIT = 1
     RECENT_SALE_DATA_LIMIT = 10
+    RECENT_PAYMENT_HISTORY = 10
 
 class Projections:
     EXCLUDE_ID = {"_id": 0}
@@ -34,5 +39,9 @@ class PaymentStatus(Enum):
     CREDITED = "credited"
     SETTLED = "settled"
     PENDING = "pending"
+
+class TransactionType(Enum):
+    SALE = "sale"
+    CREDIT = "credit"
 
 

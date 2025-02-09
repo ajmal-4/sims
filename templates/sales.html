@@ -271,7 +271,6 @@
             })
                 .then(response => response.json())
                 .then(data => {
-                    console.log(data)
                     if (data.success) {
                         clearInvoice();
                         alert('Invoice saved successfully!');

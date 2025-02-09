@@ -1,7 +1,7 @@
 from datetime import datetime
 from .common_services import CommonServices
 from flask import Flask, request, render_template, redirect, url_for, session, jsonify
-from .constants import HTMLPAGES, ErrorMessages, SuccessMessages, Limits
+from .constants import HTMLPAGES, ErrorMessages, SuccessMessages, Limits, TransactionType
 
 class Services:
     def __init__(self) -> None:
@@ -174,6 +174,66 @@ class Services:
             print(f"Exception in add_regular_products : {str(e)}")
             return jsonify({"message": ErrorMessages.UPDATE_REGULAR_PRODUCTS}), 500
     
+    def fetch_regular_products(self, user_id, data):
+        """ Fetch the regular products of a client """
+        try:
+
+            query = {
+                "supplier" : str(user_id),
+                "client_id" : data.get('client_id')
+            }
+
+            data = self.common_service.get_regular_products_from_db(query)
+            if data:
+                return jsonify({"success": True, "products": data.get("products",[])}), 200
+            else:
+                return jsonify({"success": False, "products": [], "message": ErrorMessages.FETCH_REGULAR_PRODUCTS}), 200
+
+        except Exception as e:
+            print(f"Exception in fetch_regular_products : {str(e)}")
+            return jsonify({"success": False, "message": ErrorMessages.FETCH_REGULAR_PRODUCTS}), 404
+    
+    def add_client_payment(self, user_id, data):
+        try:
+            date = str(datetime.now())
+
+            client_id = data.get("client_id", None)
+            sale_id = data.get("sale_id", None)
+            amount = data.get("amount", None)
+
+            # Function to add to the sales data also while adding to the transaction.
+            if client_id and sale_id and amount:
+                # Add to the transaction first
+                success = self.common_service.save_transaction_to_db(TransactionType.CREDIT, sale_id=sale_id, amount=amount, date=date, supplier=user_id, client=client_id)
+                if success:
+                    self.common_service.update_sales(sale_id, paid_amount=amount)
+                    return jsonify({"success": True, "message": SuccessMessages.ADD_SALES_PAYMENT}), 200
+                else:
+                    return jsonify({"success": False, "message": ErrorMessages.ADD_SALES_PAYMENT}), 500
+                
+            elif client_id and amount:
+                success = self.common_service.save_transaction_to_db(TransactionType.CREDIT, amount=amount, date=date, supplier=user_id, client=client_id)
+                if success:
+                    return jsonify({"success": True, "message": SuccessMessages.ADD_SALES_PAYMENT}), 200
+                else:
+                    return jsonify({"success": False, "message": ErrorMessages.ADD_SALES_PAYMENT}), 500
+
+        except Exception as e:
+            print(f"Exception in add_client_payment : {str(e)}")
+    
+    def fetch_client_payments(self, user_id, data):
+        try:
+
+            query = {"client":data.get("client"),"supplier":user_id}
+            data = self.common_service.fetch_client_payment_history(query)
+            if data:
+                return jsonify({"success": True, "payments": data}), 200
+            else:
+                return jsonify({"success": False, "payments": [], "message": ErrorMessages.FETCH_RECENT_MONEY_TRANSACTIONS}), 200
+            
+        except Exception as e:
+            print(f"Exception in fetch_client_payments : {str(e)}")
+    
     def add_route(self, user_id):
         try:
             if request.method == 'POST':
@@ -191,7 +251,6 @@ class Services:
 
                 # Redirect or return an error message based on success
                 if success:
-                    # return "Hooraayy!! success!!"
                     return redirect(url_for('supplier_home', user_id=user_id))
                 else:
                     return "Error adding client", 500
@@ -252,6 +311,20 @@ class Services:
         except Exception as e:
             print(f"Exception in get_product_price : {str(e)}")
             return None
+        
+    def get_supplier_recent_sales(self, user_id, data):
+        try:
+            limit = data.get("limit", Limits.RECENT_SALE_DATA_LIMIT) 
+            recent_sales = self.common_service.get_supplier_sales(user_id, limit=limit)
+
+            if recent_sales:
+                return jsonify({"success": True, "sale_data": recent_sales}), 200
+            else:
+                return jsonify({"success": False, "sale_data": [], "message": ErrorMessages.FETCH_RECENT_SALES_DATA}), 200
+
+        except Exception as e:
+            print(f"Exception in get_supplier_recent_sales : {str(e)}")
+            return None
     
     def save_sales(self, data):
         """ Save the sales data into the database """
@@ -268,18 +341,19 @@ class Services:
                 "paid_amount": data.get("paid_amount", 0.0) # To be added.
             }
 
-            transaction_result = self.common_service.save_transaction_to_db(sales_data)
-            
             result = self.common_service.save_sales_to_db(sales_data)
-            
-
-
-
-            return result
+            if result:
+                self.common_service.save_transaction_to_db(TransactionType.SALE, sale_id=sale_id)
+                return jsonify({"success": True, "message": SuccessMessages.ADD_INVOICE}), 201
+            else:
+                return jsonify({"success": False, "message": ErrorMessages.ADD_INVOICE}), 500
 
         except Exception as e:
             print(f"Exception in save_invoice : {str(e)}")
             return None
+    
+    # To be added
+    # def update_sales()
     
     def get_last_sales(self, user_id, data):
         """ Returns the last sales data of a client """
@@ -294,14 +368,14 @@ class Services:
                 if data:
                     return jsonify({"success": True, "sale_data": data}), 200
                 else:
-                    return jsonify({"success": False, "message": ErrorMessages.FETCH_LAST_SALES_DATA}), 404
+                    return jsonify({"success": False, "sale_data": [], "message": ErrorMessages.FETCH_LAST_SALES_DATA}), 200
             
             else:
                 data = self.common_service.get_supplier_recent_sales_data(query, Limits.RECENT_SALE_DATA_LIMIT)
                 if data:
                     return jsonify({"success": True, "sale_data": data}), 200
                 else:
-                    return jsonify({"success": False, "message": ErrorMessages.FETCH_RECENT_SALES_DATA}), 404
+                    return jsonify({"success": False, "sale_data": [], "message": ErrorMessages.FETCH_RECENT_SALES_DATA}), 200
 
         except Exception as e:
             print(f"Exception in get_last_sales : {str(e)}")
@@ -361,6 +435,8 @@ class Services:
             if selected_routes:
                 filtered_clients = self.common_service.get_clients_by_routes(user_id, selected_routes)
             # need to update else condition
+            else:
+                filtered_clients = None
 
             if filtered_clients:
                 return jsonify({"success": True, "clients": filtered_clients}), 200

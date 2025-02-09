@@ -356,7 +356,7 @@
             <button 
                 class="add-client-regular-btn"
                 style="color: rgb(0, 17, 255); margin-left: 10px;">
-                Add Regular
+                Show Regular
             </button>
 
             <!-- Add client regular modal -->
@@ -399,7 +399,7 @@
                             </tbody>
                         </table>
 
-                        <button type="button" onclick="submitRegularProducts()">Save</button>
+                        <button type="button" id="saveRegularProductsBtn" onclick="submitRegularProducts()">Save</button>
 
                     </div>
                 </div>
@@ -411,6 +411,20 @@
                 style="color: red; margin-left: 10px;">
                 Delete
             </button>
+
+            <!-- Recent sales data -->
+            <div id="client-sales">
+                <h4>Recent Sales</h4>
+                <ul id="client-sales-list" class="client-list">
+                    <!-- Sales data will be dynamically inserted here -->
+                </ul>
+            </div>
+
+            <!-- Recent transactions data -->
+             <div id="client-transactions">
+                <h4>Recent Money Transactions</h4>
+                <!-- To be completed -->
+             </div>
 
         </div>
 
@@ -462,10 +476,39 @@
             {% endif %}
         </div>
 
-        <!-- Sales Section -->
+        <!-- ===================================================== -->
+        <!--                       Sales                          -->
+        <!-- ===================================================== -->
         <div id="sales" class="hidden">
             <h2>Sales Section</h2>
             <button onclick="redirectToSales('{{ user_id }}')">Add Sales</button>
+            
+            <!-- Recent sales data -->
+            <div id="supplier-sales">
+                <h4>Recent Sales</h4>
+                <ul id="supplier-sales-list" class="client-list">
+                    <!-- Sales data will be dynamically inserted here -->
+                </ul>
+            </div>
+
+            <div id="showProductsModal" class="modal">
+                <div class="modal-content" id="show-products-modal-content">
+                    <span class="close" onclick="closeModal('showProductsModal')">&times;</span>
+                </div>
+            </div>
+
+            <div id="paymentModal" class="modal">
+                <div class="modal-content">
+                    <span class="close" onclick="closeModal('paymentModal')">&times;</span>
+                    <h3>Enter Payment Amount</h3>
+                    <input type="hidden" id="saleIdInput">
+                    <input type="hidden" id="paymentClientId">
+                    <label for="amountPaidInput">Amount Paid:</label>
+                    <input type="number" id="amountPaidInput" min="0" required>
+                    <button id="submitPayment">Submit Payment</button>
+                </div>
+            </div>
+
         </div>
 
         <!-- Products Section -->
@@ -561,6 +604,42 @@
         //                      Client Section                      //
         // =========================================================//
 
+        function fetchRecentSales(clientId) {
+            
+            const salesList = document.getElementById('client-sales-list');
+            salesList.innerHTML = ''; // Clear previous sales data
+
+            fetch(`/supplier/${user_id}/get_client_recent_sales`,{
+                method: 'POST',
+                headers: {
+                    "content-Type": "application/json",
+                },
+                body: JSON.stringify({ client: clientId, limit: 10 }),
+            })
+            .then(response => {
+                if (response.ok) {
+                    return response.json();
+                } else {
+                    throw new Error('Failed to fetch recent sales');
+                }
+            })
+            .then(data => {
+                let products = data.sale_data;
+            
+                if (products.length === 0) {
+                    salesList.innerHTML = '<li>No recent sales found.</li>';
+                    return;
+                }
+            
+                products.forEach(sale => {
+                    const saleItem = document.createElement('li');
+                    saleItem.innerHTML = `<strong>${sale.product_name}</strong> - ${sale.quantity} pcs on ${sale.date}`;
+                    salesList.appendChild(saleItem);
+                });
+            })
+            .catch(error => console.error('Error fetching recent sales:', error));
+        }
+
         // Show Client Profile
         function showClientProfile(clientId, name, place, routeNo, debt) {
             
@@ -588,6 +667,8 @@
             editButton.setAttribute('data-client-id', clientId);
             addRegularButton.setAttribute('data-client-id', clientId);
         
+            fetchRecentSales(clientId);
+
             showSection('client-profile');
         }
         
@@ -676,6 +757,52 @@
         // Open add regular products modal
         function addRegularProducts(clientId) {
             openModal('addClientRegulars');
+
+            fetch(`/supplier/${user_id}/get_regular`,{
+                method: 'POST',
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({ client_id: clientId }),
+            })
+            .then(response => {
+                console.log(response);
+                if (response.ok) {
+                    return response.json();
+                } else {
+                    throw new Error('Failed to fetch the client');
+                }
+            })
+            .then(data => {
+                // Uncheck all checkboxes and reset quantity fields first
+                document.querySelectorAll("input[name='product_ids']").forEach(checkbox => {
+                    checkbox.checked = false;
+                    const qtyInput = document.querySelector(`#qty_${checkbox.value}`);
+                    qtyInput.disabled = true;
+                    qtyInput.value = "";
+                });
+                
+                if (data.products.length > 0) {
+                    // Populate the modal with existing data
+                    data.products.forEach(product => {
+                        const checkbox = document.querySelector(`input[name='product_ids'][value='${product.product_id}']`);
+                        if (checkbox) {
+                            checkbox.checked = true;
+                            const qtyInput = document.querySelector(`#qty_${product.product_id}`);
+                            qtyInput.disabled = false;
+                            qtyInput.value = product.quantity;
+                        }
+                    });
+                
+                    // Change button text to "Update"
+                    document.querySelector("#saveRegularProductsBtn").innerText = "Update";
+                } else {
+                    document.querySelector("#saveRegularProductsBtn").innerText = "Save"; // Reset button text
+                }
+            })
+            .catch(error => {
+                console.error("Error fetching regular products:", error);
+            });
         }
 
         // Enable/Disable Quantity Input in Add regular products modal
@@ -738,7 +865,6 @@
             })
             .then(response => {
                 if (response.ok) {
-                    alert("Saved the client's regular product data")
                     closeModal('addClientRegulars');    
                 } else {
                     alert("Failed to update client's regular products");
@@ -932,6 +1058,125 @@
                 console.error('Error fetching clients:', error);
             });
         }
+
+        // =========================================================//
+        //                      Sales Section                       //
+        // =========================================================//
+
+        // Handle payment submission
+        document.getElementById('submitPayment').addEventListener('click', function () {
+            const saleId = document.getElementById('saleIdInput').value;
+            const amountPaid = document.getElementById('amountPaidInput').value;
+            const clientId = document.getElementById('paymentClientId').value;
+        
+            fetch(`/supplier/${user_id}/payment`, {
+                method: 'POST',
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({ client_id: clientId, sale_id: saleId, amount: amountPaid }),
+            })
+            .then(response => {
+                if (response.ok) {
+                    return response.json();
+                } else {
+                    throw new Error('Failed to fetch recent sales');
+                }
+            })
+            .then(data => {
+                alert(data.message);
+                closeModal('paymentModal')
+                showSupplierRecentSales('{{ user_id }}'); // Refresh sales data
+            })
+            .catch(error => console.error('Error processing payment:', error));
+        });
+        
+        function openPaymentModal(saleId, clientId) {
+            document.getElementById('saleIdInput').value = saleId;
+            document.getElementById('paymentClientId').value = clientId;
+            openModal('paymentModal');        
+        }
+
+        function showProductsModal(products) {
+            const modalContent = document.getElementById('show-products-modal-content');
+            modalContent.innerHTML = '<h3>Product Details</h3>';
+
+            products.forEach(product => {
+                modalContent.innerHTML += `
+                    <p><strong>Product Name:</strong> ${product.product_name}</p>
+                    <p><strong>Price:</strong> ${product.price}</p>
+                    <p><strong>Quantity:</strong> ${product.quantity}</p>
+                    <hr>
+                `;
+            });
+
+            openModal('showProductsModal');
+        }
+
+        function showSupplierRecentSales(userId) {
+
+            const salesList = document.getElementById('supplier-sales-list');
+            salesList.innerHTML = ''; // Clear previous sales data
+
+            fetch(`/supplier/${user_id}/get_recent_sales`,{
+                method: 'POST',
+                headers: {
+                    "content-Type": "application/json",
+                },
+                body: JSON.stringify({ limit: 10 }),
+            })
+            .then(response => {
+                if (response.ok) {
+                    return response.json();
+                } else {
+                    throw new Error('Failed to fetch recent sales');
+                }
+            })
+            .then(data => {
+                let sales = data.sale_data;
+
+                console.log("products are : ", sales);
+            
+                if (sales.length === 0) {
+                    salesList.innerHTML = '<li>No recent sales found.</li>';
+                    return;
+                }
+            
+                sales.forEach(sale => {
+                    const saleItem = document.createElement('li');
+                    console.log("sale is ,", sale);
+                    saleItem.innerHTML = `
+                        <strong>${sale.sale_id}</strong> Amount: ${sale.total_amount} Date: ${sale.date}
+                        <button class="view-products-btn" data-products='${JSON.stringify(sale.products)}'>View Products</button>
+                        <button class="pay-btn" data-sale-id="${sale.sale_id}" data-client-id="${sale.client}">Pay</button>
+                    `;
+                    salesList.appendChild(saleItem);
+                });
+
+                // Add event listeners to all "Pay" buttons
+                document.querySelectorAll('.pay-btn').forEach(button => {
+                    button.addEventListener('click', function () {
+                        const saleId = this.getAttribute('data-sale-id');
+                        const clientId = this.getAttribute('data-client-id');
+                        openPaymentModal(saleId, clientId);
+                    });
+                });
+
+                // Add event listeners to "view-products" buttons
+                document.addEventListener('click', function(event) {
+                    if (event.target.classList.contains('view-products-btn')){
+                        const products = JSON.parse(event.target.getAttribute('data-products'));
+                        showProductsModal(products);
+                    }
+                });
+                
+            })
+            .catch(error => console.error('Error fetching recent sales:', error));
+        }
+
+        document.querySelector('li[onclick="showSection(\'sales\')"]').addEventListener('click', function () {
+            showSupplierRecentSales('{{ user_id }}');
+        });
 
     </script>
 </body>
