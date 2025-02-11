@@ -13,6 +13,7 @@ class CommonServices:
         self.transactions = db.get_collection('transactions')
         self.users = db.get_collection('users')
         self.regulars = db.get_collection('regulars')
+        self.user_images = db.get_collection('user_images')
 
     # For authenticating the user - returns the user_type if the user is valid else returns None
     def authenticate_user(self, username, password):
@@ -376,6 +377,27 @@ class CommonServices:
                 return False
         except Exception as e:
             print(f"Exception in edit_client_from_db : {str(e)}")
+            return False
+        
+    def save_image_to_db(self, image_id, user_id):
+        try:
+            result = self.user_images.update_one(
+                {"user_id": user_id}, {"$set": {"image_id": image_id}}, upsert=True)
+            if result.image_id:
+                return True
+            else:
+                return False
+        except Exception as e:
+            print(f"Exception in save_image_to_db : {str(e)}")
+            return False
+        
+    def get_image_from_db(self, user_id):
+
+        try:
+            image_id = self.user_images.find_one({'user_id': user_id}).get('image_id')
+            return image_id
+        except Exception as e:
+            print(f"Exception in get_image_from_db : {str(e)}")
             return False
 
     def add_regulars_products_to_db(self, regular_data):

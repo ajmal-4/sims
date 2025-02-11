@@ -2,6 +2,13 @@ from datetime import datetime
 from .common_services import CommonServices
 from flask import Flask, request, render_template, redirect, url_for, session, jsonify
 from .constants import HTMLPAGES, ErrorMessages, SuccessMessages, Limits, TransactionType
+from .db import db
+from pymongo import MongoClient
+from bson import ObjectId
+import gridfs
+from .constants import HTMLPAGES, ERRORMESSAGES, SuccessMessages, Limits
+
+fs = gridfs.GridFS(db)
 
 class Services:
     def __init__(self) -> None:
@@ -22,6 +29,8 @@ class Services:
 
                 # Authenticate user
                 user_type, user_id = self.common_service.authenticate_user(username, password)
+                print(user_type)
+                print(user_id)
                 
                 # Check the user type and redirect to that template
                 if user_type and user_id:
@@ -56,7 +65,8 @@ class Services:
 
             return render_template(HTMLPAGES.SUPPLIER_HOME_PAGE, 
                                    user_id=user_id, 
-                                   user_name=session.get('user_name'), 
+                                   user_name=session.get('user_name'),
+                                   user_type=session.get('user_type'),
                                    clients=clients, 
                                    products=products, 
                                    routes=routes,
@@ -426,22 +436,30 @@ class Services:
             return self.daily_route(user_id)
         except Exception as e:
             print(f"Exception in select_route : {str(e)}")
-    
-    def fetch_daily_clients(self, user_id, data):
+
+    def upload_image(self, image, user_id):
+        """
+        Upload profile image
+        """
         try:
+            # Store the image in GridFS
+            image_id = fs.put(image, filename=image.filename, content_type=image.content_type)
+            
+            # Save user_id → image_id mapping in a collection
+            self.common_service.save_image_to_db(image_id, user_id)
 
-            selected_routes = data.get('routes')
-
-            if selected_routes:
-                filtered_clients = self.common_service.get_clients_by_routes(user_id, selected_routes)
-            # need to update else condition
-            else:
-                filtered_clients = None
-
-            if filtered_clients:
-                return jsonify({"success": True, "clients": filtered_clients}), 200
-            else:
-                return jsonify({"success": False, "message": ErrorMessages.FETCH_CLIENTS}), 404
-
+            return jsonify({"message": "Image uploaded successfully", "image_id": str(image_id)})
         except Exception as e:
-            print(f"Exception in fetch_daily_clients : {str(e)}")
+            pass
+    
+    def get_image(self, user_id):
+        """
+        Get the image from GridFS
+        """
+        try:
+            image_id = self.common_service.get_image_from_db(user_id)
+            file = fs.get(image_id)
+            return file.read(), 200, {"Content-Type": file.content_type}
+        except Exception as e:
+            return jsonify({"error": "Image not found"}), 404
+    
