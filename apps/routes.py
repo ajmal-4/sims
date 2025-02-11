@@ -217,5 +217,21 @@ def define_routes(app):
             return services.fetch_daily_clients(user_id, data)
 
     
+        @app.route('/upload_image', methods=['POST'])
+        def upload_image():
+            """
+            Upload profile image
+            """
+            if "profile_image" not in request.files:
+                return jsonify({"error": "No image provided"}), 400
+            
+            image = request.files["profile_image"]
+            # session['user_id']
+            return services.upload_image(image, 123), 201
+        
+        @app.route('/get_image/<user_id>', methods=['GET'])
+        def get_image(user_id):
+            return services.get_image(int(user_id))
+        
     except Exception as e:
         print(f"Exception in define routes : {str(e)}")
