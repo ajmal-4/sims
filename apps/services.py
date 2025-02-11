@@ -436,7 +436,26 @@ class Services:
             return self.daily_route(user_id)
         except Exception as e:
             print(f"Exception in select_route : {str(e)}")
+    
+    def fetch_daily_clients(self, user_id, data):
+        try:
 
+            selected_routes = data.get('routes')
+
+            if selected_routes:
+                filtered_clients = self.common_service.get_clients_by_routes(user_id, selected_routes)
+            # need to update else condition
+            else:
+                filtered_clients = None
+
+            if filtered_clients:
+                return jsonify({"success": True, "clients": filtered_clients}), 200
+            else:
+                return jsonify({"success": False, "message": ErrorMessages.FETCH_CLIENTS}), 404
+        except Exception as e:
+            print(f"Exception in fetch_daily_clients : {str(e)}")
+            return False
+        
     def upload_image(self, image, user_id):
         """
         Upload profile image
@@ -450,7 +469,8 @@ class Services:
 
             return jsonify({"message": "Image uploaded successfully", "image_id": str(image_id)})
         except Exception as e:
-            pass
+            print(f"Exception in upload_image : {str(e)}")
+            return False
     
     def get_image(self, user_id):
         """
