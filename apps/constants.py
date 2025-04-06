@@ -10,8 +10,10 @@ class SuccessMessages:
     DELETE_CLIENT = 'Client deleted successfully'
     EDIT_CLIENT = 'Client updated successfully'
     ADD_INVOICE = 'Invoice saved successfully!'
+    UPDATE_INVOICE = 'Invpice updated successfully'
     UPDATE_REGULAR_PRODUCTS = "Client regular product details updated successfully"
     ADD_SALES_PAYMENT = "Updated payment information"
+    FETCH_CLIENT_STATUS = "Successfully fetched client status"
 
 
 class ErrorMessages:
@@ -19,6 +21,7 @@ class ErrorMessages:
     EDIT_CLIENT = 'Could not update the client at the moment'
     DELETE_CLIENT = 'Could not delete the client at the moment'
     ADD_INVOICE = 'Could not save the invoice at the moment'
+    UPDATE_INVOICE = 'Could not update the invoice at the moment'
     FETCH_LAST_SALES_DATA = 'Invoice does not found for the client'
     FETCH_RECENT_SALES_DATA = 'Recent Invoices does not found for the client'
     FETCH_CLIENTS = "Failed to fetch clients"
@@ -26,6 +29,9 @@ class ErrorMessages:
     FETCH_REGULAR_PRODUCTS = "Could not fetch the regular products"
     ADD_SALES_PAYMENT = "Failed to update sales payment"
     FETCH_RECENT_MONEY_TRANSACTIONS = "Failed to fetch recent money transactions"
+    FETCH_CLIENT_STATUS = "Failed to fetch client status"
+    SUPPLY_REGULAR = "Failed to supply client regular items"
+    FETCH_DAILY_ROUTE_CLIENTS = "Failed to fetch daily route clients"
 
 class Limits:
     LAST_SALE_DATA_LIMIT = 1
@@ -44,4 +50,7 @@ class TransactionType(Enum):
     SALE = "sale"
     CREDIT = "credit"
 
-
+class ClientStatus(Enum):
+    DEBT = "debt"
+    BALANCED = "balanced"
+    OVER_PAYED = "over_payed"

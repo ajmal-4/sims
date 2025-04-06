@@ -155,10 +155,8 @@ class Services:
     
     def add_regular_products(self, user_id, data):
         try:
-            regular_id = f"regular_{self.common_service.generate_unique_id('regulars')}"
 
             regular_data = {
-                "regular_id": regular_id,
                 "client_id": data.get("client_id"),
                 "products": data.get("products"),
                 "supplier": str(user_id)
@@ -199,20 +197,24 @@ class Services:
 
             client_id = data.get("client_id", None)
             sale_id = data.get("sale_id", None)
+            last_payment = data.get("last_payment", 0)
             amount = data.get("amount", None)
 
             # Function to add to the sales data also while adding to the transaction.
             if client_id and sale_id and amount:
                 # Add to the transaction first
                 success = self.common_service.save_transaction_to_db(TransactionType.CREDIT, sale_id=sale_id, amount=amount, date=date, supplier=user_id, client=client_id)
+                total_amount = int(last_payment) + amount # Add last paid amount and current paid amount and update the debt as well as sales data
+                self.common_service.update_client_debt(client_id, user_id, TransactionType.CREDIT, amount, date)
                 if success:
-                    self.common_service.update_sales(sale_id, paid_amount=amount)
+                    self.common_service.update_sales(sale_id, paid_amount=total_amount)
                     return jsonify({"success": True, "message": SuccessMessages.ADD_SALES_PAYMENT}), 200
                 else:
                     return jsonify({"success": False, "message": ErrorMessages.ADD_SALES_PAYMENT}), 500
                 
             elif client_id and amount:
                 success = self.common_service.save_transaction_to_db(TransactionType.CREDIT, amount=amount, date=date, supplier=user_id, client=client_id)
+                self.common_service.update_client_debt(client_id, user_id, TransactionType.CREDIT, amount, date)
                 if success:
                     return jsonify({"success": True, "message": SuccessMessages.ADD_SALES_PAYMENT}), 200
                 else:
@@ -224,7 +226,7 @@ class Services:
     def fetch_client_payments(self, user_id, data):
         try:
 
-            query = {"client":data.get("client"),"supplier":user_id}
+            query = {"client":data.get("client"), "supplier":user_id, "transaction_type": TransactionType.CREDIT.value}
             data = self.common_service.fetch_client_payment_history(query)
             if data:
                 return jsonify({"success": True, "payments": data}), 200
@@ -233,6 +235,7 @@ class Services:
             
         except Exception as e:
             print(f"Exception in fetch_client_payments : {str(e)}")
+            return jsonify({"success": False, "message": ErrorMessages.FETCH_RECENT_MONEY_TRANSACTIONS}), 404
     
     def add_route(self, user_id):
         try:
@@ -326,24 +329,47 @@ class Services:
             print(f"Exception in get_supplier_recent_sales : {str(e)}")
             return None
     
-    def save_sales(self, data):
+    def get_client_status(self, user_id, data):
+        try:
+            client = data.get("client")
+
+            result = self.common_service.get_client_debt_status(client, user_id)
+            if result:
+                return jsonify({"success": True, "status": result.get('amount')}), 200
+            else:
+                return jsonify({"success": False, "status": "nil", "message": ErrorMessages.FETCH_CLIENT_STATUS}), 200
+
+        except Exception as e:
+            print(f"Exception in get_supplier_recent_sales : {str(e)}")
+            return None
+
+    def save_sales(self, data, **kwargs):
         """ Save the sales data into the database """
         try:
             sale_id = f"sale_{self.common_service.generate_unique_id('sales')}"
 
+            supplier_id = data.get("supplier", '')
+            client_id = data.get("client",'')
+            total_amount = data.get("total_amount", 0.0)
+            date = data.get("date", datetime.now().isoformat())
+
             sales_data = {
                 "sale_id": sale_id,
-                "client":data.get("client",''),
-                "supplier": data.get("supplier", ''),
+                "client": client_id,
+                "supplier": supplier_id,
                 "products": data.get("products", []),
-                "total_amount": data.get("total_amount", 0.0),
-                "date": data.get("date", datetime.now().isoformat()),
-                "paid_amount": data.get("paid_amount", 0.0) # To be added.
+                "total_amount": total_amount,
+                "paid_amount" : 0,
+                "date": date,
             }
+
+            if kwargs.get("daily_supply"):
+                sales_data["daily_supply"] = True
 
             result = self.common_service.save_sales_to_db(sales_data)
             if result:
                 self.common_service.save_transaction_to_db(TransactionType.SALE, sale_id=sale_id)
+                self.common_service.update_client_debt(client_id, supplier_id, TransactionType.SALE, total_amount, date)
                 return jsonify({"success": True, "message": SuccessMessages.ADD_INVOICE}), 201
             else:
                 return jsonify({"success": False, "message": ErrorMessages.ADD_INVOICE}), 500
@@ -352,8 +378,33 @@ class Services:
             print(f"Exception in save_invoice : {str(e)}")
             return None
     
-    # To be added
-    # def update_sales()
+    def update_sales(self, user_id, data):
+        """ Update the saved sales data """
+        try:
+            # Find the previous total amount
+            previous_total_amount = None
+            previous_sales_data = self.common_service.get_individual_sales_data(user_id, data["sale_id"])
+            if previous_sales_data:
+                previous_total_amount = previous_sales_data.get("total_amount", None)
+            
+            # Debt updation logic
+            if previous_total_amount and previous_total_amount > data["total_amount"]:
+                debt = -(previous_total_amount - data["total_amount"])
+            elif previous_total_amount and previous_total_amount < data["total_amount"]:
+                debt = data["total_amount"] - previous_total_amount
+
+            if self.common_service.update_sales(
+                data["sale_id"], products = data["products"], 
+                total_amount = data["total_amount"]
+            ):
+                self.common_service.update_client_debt(data["client"], data["supplier"], TransactionType.SALE, debt, str(datetime.now))
+                return jsonify({"success": True, "message": SuccessMessages.UPDATE_INVOICE}), 200
+            
+            return jsonify({"success": False, "message": ErrorMessages.UPDATE_INVOICE}), 500
+
+        except Exception as e:
+            print(f"Exception in update_sales : {str(e)}")
+            return jsonify({"success": False, "message": ErrorMessages.UPDATE_INVOICE}), 500
     
     def get_last_sales(self, user_id, data):
         """ Returns the last sales data of a client """
@@ -430,7 +481,7 @@ class Services:
     def fetch_daily_clients(self, user_id, data):
         try:
 
-            selected_routes = data.get('routes')
+            selected_routes = data['routes']
 
             if selected_routes:
                 filtered_clients = self.common_service.get_clients_by_routes(user_id, selected_routes)
@@ -439,9 +490,38 @@ class Services:
                 filtered_clients = None
 
             if filtered_clients:
+                filtered_clients_supply_status = self.common_service.get_daily_supply_status(data['date'])
+                # Update the filtered clients list
+                supply_status_map = {item["client_id"]:item["daily_supply"] for item in filtered_clients_supply_status}
+                for client in filtered_clients:
+                    if client["client_id"] in supply_status_map:
+                        client["supplied"] = supply_status_map[client["client_id"]]
+                    else:
+                        client["supplied"] = False
+
                 return jsonify({"success": True, "clients": filtered_clients}), 200
             else:
                 return jsonify({"success": False, "message": ErrorMessages.FETCH_CLIENTS}), 404
 
         except Exception as e:
             print(f"Exception in fetch_daily_clients : {str(e)}")
+            return jsonify({"success": False, "message": ErrorMessages.FETCH_CLIENTS}), 404
+    
+    def supply_regular(self, user_id, data):
+        try:
+            
+            products, total_amount = self.common_service.get_product_details(data.get('products', []))
+
+            sales_data = {
+                "supplier": user_id,
+                "client": data["client"],
+                "products": products,
+                "total_amount": total_amount,
+                "date": datetime.now().isoformat()
+            }
+
+            return self.save_sales(sales_data, daily_supply=True)
+
+        except Exception as e:
+            print(f"Exception in supply_regular : {str(e)}")
+            return None

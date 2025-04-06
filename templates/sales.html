@@ -94,17 +94,28 @@
 
         // Fetch clients from DB
         document.addEventListener('DOMContentLoaded', function () {
+            const urlParams = new URLSearchParams(window.location.search);
+            const clientIdFromUrl = urlParams.get('client_id');
+
             fetch(`/get_clients/${userId}`)
                 .then(response => response.json())
                 .then(data => {
                     if (data.clients && data.clients.length > 0) {
+                        const clientSelect = document.getElementById('client_name');
+
                         data.clients.forEach(client => {
                             const option = document.createElement('option');
                             option.value = client.client_id;
                             option.dataset.name = client.name;
                             option.textContent = client.name;
-                            document.getElementById('client_name').appendChild(option);
+                            clientSelect.appendChild(option);
                         });
+
+                        // If client ID is in URL, pre-select and lock the dropdown
+                        if (clientIdFromUrl) {
+                            clientSelect.value = clientIdFromUrl;
+                            clientSelect.disabled = true;
+                        }
                     }
                 })
                 .catch(() => {
@@ -185,7 +196,8 @@
                 `;
                 document.getElementById('product_table_body').appendChild(row);
 
-                totalAmount += parseFloat(amount);
+                // totalAmount += parseFloat(amount);
+                totalAmount = calculateTotalAmount();
                 document.getElementById('total_amount').textContent = `$${totalAmount.toFixed(2)}`;
                 clearFields();
             } else {
@@ -229,6 +241,10 @@
             // Reset client selection to default
             document.getElementById('client_name').value = 'Other';
         }
+
+        // 
+        // Saving , Loading & Updation
+        // 
 
         // Save Invoice to DB
         document.getElementById('save_invoice').addEventListener('click', function () {
@@ -366,7 +382,6 @@
                     // Clear current table
                     const productTableBody = document.getElementById('product_table_body');
                     productTableBody.innerHTML = '';
-                    let totalAmount = 0;
                 
                     // Find client name and set dropdown
                     const clientOption = document.querySelector(`#client_name option[value="${data.sale_data.client}"]`);
@@ -399,10 +414,11 @@
                         `;
                         productTableBody.appendChild(row);
                         
-                        totalAmount += (product.quantity * product.price);
+                        // totalAmount += (product.quantity * product.price);
                     });
                 
                     // Update total amount
+                    totalAmount = calculateTotalAmount()
                     document.getElementById('total_amount').textContent = `$${totalAmount.toFixed(2)}`;
 
                     if (!document.getElementById('new_invoice')) {

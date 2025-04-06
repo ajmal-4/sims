@@ -5,7 +5,9 @@ from pydantic import ValidationError
 from .services import Services
 from .constants import ErrorMessages
 from .common_services import CommonServices
-from .schemas import RegularProductsRequest, FetchClientRecentSales, FetchSupplierRecentSales, AddPayment, FetchPaymentHistory
+from .schemas import (RegularProductsRequest, FetchClientRecentSales, FetchSupplierRecentSales, 
+                      AddPayment, FetchPaymentHistory, FetchClientStatus, SupplyRegular, FetchRegularProducts,
+                      FetchDailyClients, UpdateSales)
 
 def define_routes(app):
     """Define all application routes."""
@@ -76,8 +78,17 @@ def define_routes(app):
             except ValidationError as e:
                 print(f"Exception in fetch_client_recent_sales : {str(e)}")
                 return jsonify({"message": ErrorMessages.FETCH_RECENT_SALES_DATA}), 500
-            
         
+        # Fetch client debt status
+        @app.route('/supplier/<int:user_id>/get_client_status', methods=['POST'])
+        def get_client_status(user_id):
+            try:
+                data = FetchClientStatus.model_validate(request.get_json())
+                return services.get_client_status(user_id, data.model_dump())
+            except ValidationError as e:
+                print(f"Exception in fetch_client_recent_sales : {str(e)}")
+                return jsonify({"message": ErrorMessages.FETCH_CLIENT_STATUS}), 500
+
         ### Regular Products
         ###########################
 
@@ -90,15 +101,20 @@ def define_routes(app):
                 return services.add_regular_products(user_id, data.model_dump())
         
             except ValidationError as e:
-                print(f"Exception in add_regular : {str(e)}")
+                print(f"Exception in /add_regular : {str(e)}")
                 return jsonify({"message": ErrorMessages.UPDATE_REGULAR_PRODUCTS}), 500
         
         #supplier Fetch Client's Regular
         @app.route('/supplier/<int:user_id>/get_regular', methods = ['GET','POST'])
         def get_regular(user_id):
-            data = request.get_json()
-            return services.fetch_regular_products(user_id, data)
-        
+            try:
+                data = FetchRegularProducts.model_validate(request.get_json())
+                return services.fetch_regular_products(user_id, data.model_dump())
+            
+            except ValidationError as e:
+                print(f"Exception in /get_regular : {str(e)}")
+                return jsonify({"message": ErrorMessages.FETCH_REGULAR_PRODUCTS}), 500
+
 
         ### Route
         ################
@@ -162,12 +178,15 @@ def define_routes(app):
                 return services.get_last_sales(user_id, data)
         
         # To be finished
-        @app.route('/update_sales/<int:user_id>', methods=['POST'])
+        @app.route('/update_sales/<int:user_id>', methods=['PUT'])
         def update_sales(user_id):
             try:
-                pass
-            except Exception as e:
-                pass
+                data = UpdateSales.model_validate(request.get_json())
+                return services.update_sales(user_id, data.model_dump())
+
+            except ValidationError as ve:
+                print(f"Validation error in /update_sales : {str(ve)}")
+                return jsonify({"message": ErrorMessages.UPDATE_INVOICE}), 500
 
 
         ### Payment Transactions
@@ -213,9 +232,21 @@ def define_routes(app):
         
         @app.route('/fetch_daily_clients/<int:user_id>', methods=['GET','POST'])
         def fetch_daily_clients(user_id):
-            data = request.get_json()
-            return services.fetch_daily_clients(user_id, data)
+            try:
+                data = FetchDailyClients.model_validate(request.get_json())
+                return services.fetch_daily_clients(user_id, data.model_dump())
+            except ValidationError as e:
+                print(f"Exception in /fetch_daily_clients : {str(e)}")
+                return jsonify({"message": ErrorMessages.FETCH_DAILY_ROUTE_CLIENTS}), 500
 
+        @app.route('/supplier/<int:user_id>/supply_regular', methods=['GET', 'POST'])
+        def supply_regular(user_id):
+            try:
+                data = SupplyRegular.model_validate(request.get_json())
+                return services.supply_regular(user_id, data.model_dump())
+            except ValidationError as e:
+                print(f"Exception in /supply_regular : {str(e)}")
+                return jsonify({"message": ErrorMessages.SUPPLY_REGULAR}), 500
     
     except Exception as e:
         print(f"Exception in define routes : {str(e)}")

@@ -300,6 +300,14 @@
                         <strong>{{ client.name }}</strong> 
                         Place: {{ client.place }}, Route No: {{ client.route_no }}, Debt: {{ client.debt }}
 
+                        <button class="supply-client-regular-btn" 
+                            style="color: rgb(0, 17, 255); margin-left: 10px;"
+                            data-client-id="{{ client.client_id }}">
+                            Supply Regular
+                        </button>
+
+                        <button onclick="redirectToClientSales('{{ user_id }}', '{{ client.client_id }}')">Add Sales</button>
+
                     </li>
                     {% endfor %}
 
@@ -412,6 +420,14 @@
                 Delete
             </button>
 
+            <!-- Client Status -->
+            <div id="client-status">
+                <h4>Client Status</h4>
+                <div id="client-status-list">
+                    <!-- Client status data will be dynamically inserted here -->
+                </div>
+            </div>
+
             <!-- Recent sales data -->
             <div id="client-sales">
                 <h4>Recent Sales</h4>
@@ -421,10 +437,12 @@
             </div>
 
             <!-- Recent transactions data -->
-             <div id="client-transactions">
+            <div id="client-transactions">
                 <h4>Recent Money Transactions</h4>
-                <!-- To be completed -->
-             </div>
+                <ul id="client-payment-list" class="client-list">
+                    <!-- Sales data will be dynamically inserted here -->
+                </ul>
+            </div>
 
         </div>
 
@@ -491,24 +509,6 @@
                 </ul>
             </div>
 
-            <div id="showProductsModal" class="modal">
-                <div class="modal-content" id="show-products-modal-content">
-                    <span class="close" onclick="closeModal('showProductsModal')">&times;</span>
-                </div>
-            </div>
-
-            <div id="paymentModal" class="modal">
-                <div class="modal-content">
-                    <span class="close" onclick="closeModal('paymentModal')">&times;</span>
-                    <h3>Enter Payment Amount</h3>
-                    <input type="hidden" id="saleIdInput">
-                    <input type="hidden" id="paymentClientId">
-                    <label for="amountPaidInput">Amount Paid:</label>
-                    <input type="number" id="amountPaidInput" min="0" required>
-                    <button id="submitPayment">Submit Payment</button>
-                </div>
-            </div>
-
         </div>
 
         <!-- Products Section -->
@@ -550,6 +550,78 @@
                 {% endif %}
             </div>
         </div>
+
+        <!-- ===================================================== -->
+        <!--                    Common Modals                      -->
+        <!-- ===================================================== -->
+
+        <!-- Client Recent Sales Products Modal -->
+        <div id="showProductsModal" class="modal">
+            <div class="modal-content" id="show-products-modal-content">
+                <span class="close" onclick="closeModal('showProductsModal')">&times;</span>
+            </div>
+        </div>
+
+        <!-- Client Recent Sales payment modal -->
+        <div id="paymentModal" class="modal">
+            <div class="modal-content">
+                <span class="close" onclick="closeModal('paymentModal')">&times;</span>
+                <h3>Enter Payment Amount</h3>
+                <input type="hidden" id="saleIdInput">
+                <input type="hidden" id="paymentClientId">
+                <input type="hidden" id="lastPayment">
+                <label for="amountPaidInput">Amount Paid:</label>
+                <input type="number" id="amountPaidInput" min="0" required>
+                <button id="submitPayment">Submit Payment</button>
+            </div>
+        </div>
+
+        <!-- Supply client regular modal -->
+        <div id="supplyClientRegulars" class="modal">
+            <div class="modal-content">
+                <span class="close" onclick="closeModal('supplyClientRegulars')">&times;</span>
+                <div class="modal-header">Add Regular Products</div>
+                <div class="supply-regular-products-form">
+                    <input type="hidden" id="client_id">
+                    
+                    <!-- Product List -->
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Product</th>
+                                <th>Quantity</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for product in products %}
+                            <tr>
+                                <td>
+                                    <label>
+                                        <input type="checkbox" name="product_ids" value="{{ product.product_id }}">
+                                        {{ product.product_name }}
+                                    </label>
+                                </td>
+                                <td>
+                                    <input
+                                        type="number"
+                                        id="qty_{{ product.product_id }}"
+                                        name="qty_{{ product.product_id }}"
+                                        min="1"
+                                        placeholder="Enter qty"
+                                        disabled
+                                    >
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+
+                    <button type="button" id="supplyRegularProductsBtn" onclick="supplyRegularProducts()">Supply</button>
+
+                </div>
+            </div>
+        </div>
+
 
     </div>
 
@@ -600,9 +672,54 @@
             window.location.href = `/supplier/${userId}/sales`;
         }
 
+        // Function to redirect to client's sales
+        function redirectToClientSales(user_id, client_id = null) {
+            let url = `/supplier/${user_id}/sales`;
+            if (client_id) {
+                url += `?client_id=${client_id}`;
+                window.location.href = url
+            }
+        }
+
         // =========================================================//
         //                      Client Section                      //
         // =========================================================//
+
+        function fetchRecentPayments(clientId) {
+
+            const paymentHistory = document.getElementById('client-payment-list');
+            paymentHistory.innerHTML = '';
+
+            fetch(`/supplier/${user_id}/get_payment_history`, {
+                method: 'POST',
+                headers: {
+                    "content-Type": "application/json",
+                },
+                body: JSON.stringify({ client: clientId, limit: 10 }),
+            })
+            .then(response => {
+                if (response.ok) {
+                    return response.json();
+                } else {
+                    throw new Error('Failed to fetch recent sales');
+                }
+            })
+            .then(data => {
+                let payments = data.payments;
+
+                if (payments.length === 0) {
+                    paymentHistory.innerHTML = '<li>No recent payments found.</li>';
+                    return;
+                }
+
+                payments.forEach(payment => {
+                    const paymentEntry = document.createElement('li');
+                    paymentEntry.innerHTML = `<strong>${payment.transaction_id}</strong> - ${payment.amount} on ${payment.date}`;
+                    paymentHistory.appendChild(paymentEntry);
+                });
+            })
+            .catch(error => console.error('Error fetching recent payments:', error));
+        }
 
         function fetchRecentSales(clientId) {
             
@@ -624,20 +741,75 @@
                 }
             })
             .then(data => {
-                let products = data.sale_data;
+                let sales = data.sale_data;
             
-                if (products.length === 0) {
+                if (sales.length === 0) {
                     salesList.innerHTML = '<li>No recent sales found.</li>';
                     return;
                 }
             
-                products.forEach(sale => {
+                sales.forEach(sale => {
                     const saleItem = document.createElement('li');
-                    saleItem.innerHTML = `<strong>${sale.product_name}</strong> - ${sale.quantity} pcs on ${sale.date}`;
+        
+                    let payButton = '';
+                    if (sale.paid_amount < sale.total_amount) {
+                        payButton = `<button class="pay-btn" data-sale-id="${sale.sale_id}" data-client-id="${sale.client}" data-paid-amount="${sale.paid_amount || 0}">Pay</button>`;
+                    }
+
+                    saleItem.innerHTML = `
+                        <strong>${sale.sale_id}</strong> Amount: ${sale.total_amount} Date: ${sale.date}
+                        <button class="view-products-btn" data-products='${JSON.stringify(sale.products)}'>View Products</button>
+                        ${payButton} Paid: ${sale.paid_amount || 0}
+                    `;
+
                     salesList.appendChild(saleItem);
                 });
+
+                // Add event listeners to all "Pay" buttons
+                document.querySelectorAll('.pay-btn').forEach(button => {
+                    button.addEventListener('click', function () {
+                        const saleId = this.getAttribute('data-sale-id');
+                        const clientId = this.getAttribute('data-client-id');
+                        const paidAmount = this.getAttribute('data-paid-amount');
+                        openPaymentModal(saleId, clientId, paidAmount);
+                    });
+                });
+
+                // Add event listeners to "view-products" buttons
+                document.addEventListener('click', function(event) {
+                    if (event.target.classList.contains('view-products-btn')){
+                        const products = JSON.parse(event.target.getAttribute('data-products'));
+                        showProductsModal(products);
+                    }
+                });
+                
             })
             .catch(error => console.error('Error fetching recent sales:', error));
+        }
+
+        function fetchClientStatus(clientId) {
+            const statusList = document.getElementById('client-status-list');
+            statusList.innerHTML = '';
+
+            fetch(`/supplier/${user_id}/get_client_status`,{
+                method: 'POST',
+                headers: {
+                    "content-Type": "application/json",
+                },
+                body: JSON.stringify({ client: clientId })
+            })
+            .then(response => {
+                if (response.ok) {
+                    return response.json();
+                } else {
+                    throw new Error('Failed to fetch client status');
+                }
+            })
+            .then(data => {
+                let status = data.status;
+                statusList.innerHTML = `<strong>${status}</strong>`
+            })
+            .catch(error => console.error('Error fetching client status'));
         }
 
         // Show Client Profile
@@ -668,6 +840,8 @@
             addRegularButton.setAttribute('data-client-id', clientId);
         
             fetchRecentSales(clientId);
+            fetchRecentPayments(clientId);
+            fetchClientStatus(clientId);
 
             showSection('client-profile');
         }
@@ -675,6 +849,11 @@
         // Event listener in client list
         document.getElementById('client-list').addEventListener('click', function (event) {
             const target = event.target;
+
+            // Exclude the "Supply Regular" button from triggering showClientProfile
+            if (target.matches('.supply-client-regular-btn')) {
+                return; // Stop execution if the button is clicked
+            }
 
             // Handle client list item clicks
             const listItem = target.closest('li');
@@ -758,6 +937,8 @@
         function addRegularProducts(clientId) {
             openModal('addClientRegulars');
 
+            const modal = document.getElementById('addClientRegulars');
+
             fetch(`/supplier/${user_id}/get_regular`,{
                 method: 'POST',
                 headers: {
@@ -766,7 +947,6 @@
                 body: JSON.stringify({ client_id: clientId }),
             })
             .then(response => {
-                console.log(response);
                 if (response.ok) {
                     return response.json();
                 } else {
@@ -774,10 +954,10 @@
                 }
             })
             .then(data => {
-                // Uncheck all checkboxes and reset quantity fields first
-                document.querySelectorAll("input[name='product_ids']").forEach(checkbox => {
+
+                modal.querySelectorAll("input[name='product_ids']").forEach(checkbox => {
                     checkbox.checked = false;
-                    const qtyInput = document.querySelector(`#qty_${checkbox.value}`);
+                    const qtyInput = modal.querySelector(`#qty_${checkbox.value}`);
                     qtyInput.disabled = true;
                     qtyInput.value = "";
                 });
@@ -785,7 +965,7 @@
                 if (data.products.length > 0) {
                     // Populate the modal with existing data
                     data.products.forEach(product => {
-                        const checkbox = document.querySelector(`input[name='product_ids'][value='${product.product_id}']`);
+                        const checkbox = modal.querySelector(`input[name='product_ids'][value='${product.product_id}']`);
                         if (checkbox) {
                             checkbox.checked = true;
                             const qtyInput = document.querySelector(`#qty_${product.product_id}`);
@@ -795,9 +975,9 @@
                     });
                 
                     // Change button text to "Update"
-                    document.querySelector("#saveRegularProductsBtn").innerText = "Update";
+                    modal.querySelector("#saveRegularProductsBtn").innerText = "Update";
                 } else {
-                    document.querySelector("#saveRegularProductsBtn").innerText = "Save"; // Reset button text
+                    modal.querySelector("#saveRegularProductsBtn").innerText = "Save";
                 }
             })
             .catch(error => {
@@ -805,16 +985,19 @@
             });
         }
 
-        // Enable/Disable Quantity Input in Add regular products modal
-        document.querySelectorAll("input[name='product_ids']").forEach(checkbox => {
-            checkbox.addEventListener("change", function () {
-                const qtyInput = document.querySelector(`#qty_${this.value}`);
-                if (this.checked) {
-                    qtyInput.disabled = false;
-                } else {
-                    qtyInput.disabled = true;
-                    qtyInput.value = ""; // Clear the value if unchecked
-                }
+        document.addEventListener("DOMContentLoaded", function() {
+            const modal = document.getElementById('addClientRegulars');
+
+            modal.querySelectorAll("input[name='product_ids']").forEach(checkbox => {
+                checkbox.addEventListener("change", function () {
+                    const qtyInput = modal.querySelector(`#qty_${this.value}`);
+                    if (this.checked) {
+                        qtyInput.disabled = false;
+                    } else {
+                        qtyInput.disabled = true;
+                        qtyInput.value = "";
+                    }
+                });
             });
         });
 
@@ -853,8 +1036,6 @@
                 client_id: clientId,
                 products: selectedProducts
             };
-
-            console.log("data is ", data);
 
             fetch(`/supplier/${user_id}/add_regular`, {
                 method: 'POST',
@@ -998,6 +1179,143 @@
         //                      Daily Route                         //
         // =========================================================//
 
+        function supplyRegularProducts() {
+            const clientId = document.getElementById("client_id").value;
+            const modal = document.getElementById('supplyClientRegulars');
+            const selectedProducts = [];
+
+            const productCheckboxes = modal.querySelectorAll("input[name='product_ids']:checked");
+            
+            productCheckboxes.forEach(checkbox => {
+                const productId = checkbox.value;
+                const quantityInput = modal.querySelector(`#qty_${productId}`);
+                const quantity = parseInt(quantityInput.value);
+
+                if (!quantity || quantity < 1) {
+                    alert('Please enter a valid quantity for all selected products');
+                    return;
+                }
+            
+                selectedProducts.push({
+                    product_id: productId,
+                    quantity: quantity
+                });
+            });
+        
+            if (selectedProducts.length === 0) {
+                alert('Please select at least one product');
+                return;
+            }
+        
+            const data = {
+                client: clientId,
+                products: selectedProducts
+            };
+
+            fetch(`/supplier/${user_id}/supply_regular`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(data)
+            })
+            .then(response => {
+                if (response.ok) {
+                    closeModal('supplyClientRegulars');   
+                    alert("Supplied successfully");
+
+                    const button = document.querySelector(`.supply-client-regular-btn[data-client-id='${clientId}']`)
+                    if (button) {
+                        button.outerHTML = `<span style="color: green; font-weight: bold;">Supplied</span>`;
+                    }
+                } else {
+                    alert("Failed to add to supply data");
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Failed to add regular products. Please try again.');
+            });
+        }
+
+        function getRegularProducts(clientId) {
+            openModal('supplyClientRegulars');
+
+            // Set the client_id hidden input value
+            document.getElementById("client_id").value = clientId;
+
+            fetch(`/supplier/${user_id}/get_regular`, {
+                method: 'POST',
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({ client_id: clientId }),
+            })
+            .then(response => {
+                if (response.ok) {
+                    return response.json();
+                } else {
+                    throw new Error('Failed to fetch the client');
+                }
+            })
+            .then(data => {
+
+                // Get the modal container to scope our queries
+                const modal = document.getElementById('supplyClientRegulars');
+
+                // Uncheck all checkboxes and reset quantity fields within the modal
+                const checkboxes = modal.querySelectorAll("input[name='product_ids']");
+                checkboxes.forEach(checkbox => {
+                    checkbox.checked = false;
+                    const qtyInput = modal.querySelector(`#qty_${checkbox.value}`);
+                    if (qtyInput) {
+                        qtyInput.disabled = true;
+                        qtyInput.value = "";
+                    }
+                });
+
+                if (data.products && data.products.length > 0) {
+                    // Populate the modal with existing data
+                    data.products.forEach(product => {
+                        const checkbox = modal.querySelector(`input[name='product_ids'][value='${product.product_id}']`);
+                        if (checkbox) {
+                            checkbox.checked = true;
+                            const qtyInput = modal.querySelector(`#qty_${product.product_id}`);
+                            if (qtyInput) {
+                                qtyInput.disabled = false;
+                                qtyInput.value = product.quantity;
+                            }
+                        }
+                    });
+                }
+
+                // Update the button text
+                const button = modal.querySelector("#supplyRegularProductsBtn");
+                if (button) {
+                    button.innerText = "Supply";
+                }
+            })
+            .catch(error => {
+                console.error("Error fetching regular products:", error);
+            });
+        }
+
+        document.addEventListener("DOMContentLoaded", function() {
+            const modal = document.getElementById('supplyClientRegulars');
+
+            modal.querySelectorAll("input[name='product_ids']").forEach(checkbox => {
+                checkbox.addEventListener("change", function () {
+                    const qtyInput = modal.querySelector(`#qty_${this.value}`);
+                    if (this.checked) {
+                        qtyInput.disabled = false;
+                    } else {
+                        qtyInput.disabled = true;
+                        qtyInput.value = "";
+                    }
+                });
+            });
+        });
+        
         function fetchDailyClients() {
             const selectedDate = document.getElementById('date').value;
             const selectedRoutes = Array.from(document.getElementById('routes').selectedOptions)
@@ -1023,7 +1341,6 @@
                 body: JSON.stringify(data) 
             })
             .then(response => {
-                console.log("response is ",response);
                 if (response.ok) {
                     return response.json();
                 } else {
@@ -1040,7 +1357,20 @@
                 if (data.clients && data.clients.length > 0) {
                     let html = '<ul>';
                     data.clients.forEach(client => {
-                        html += `<li><strong>${client.name}</strong> (Place: ${client.place}, Debt: ${client.debt})</li>`;
+                        let buttonHtml = client.supplied 
+                            ? `<span style="color: green; font-weight: bold;">Supplied</span>` 
+                            : `<button class="supply-client-regular-btn" 
+                                       style="color: rgb(0, 17, 255); margin-left: 10px;"
+                                       data-client-id="${client.client_id}">
+                                Supply Regular
+                               </button>`;
+                        
+                        html += `<li>
+                                    <strong>${client.name}</strong> (Place: ${client.place}, Debt: ${client.debt})
+                                    ${buttonHtml}
+                                </li>`;
+
+
                     });
                     html += '</ul>';
                     clientListContainer.innerHTML = html;
@@ -1059,6 +1389,15 @@
             });
         }
 
+        document.addEventListener("click", function(event) {
+            const target = event.target;
+
+            if (target.classList.contains("supply-client-regular-btn")) {
+                const clientId = target.getAttribute('data-client-id');
+                getRegularProducts(clientId)
+            }
+        });
+
         // =========================================================//
         //                      Sales Section                       //
         // =========================================================//
@@ -1068,13 +1407,14 @@
             const saleId = document.getElementById('saleIdInput').value;
             const amountPaid = document.getElementById('amountPaidInput').value;
             const clientId = document.getElementById('paymentClientId').value;
+            const lastPayment = document.getElementById('lastPayment').value;
         
             fetch(`/supplier/${user_id}/payment`, {
                 method: 'POST',
                 headers: {
                     "Content-Type": "application/json",
                 },
-                body: JSON.stringify({ client_id: clientId, sale_id: saleId, amount: amountPaid }),
+                body: JSON.stringify({ client_id: clientId, sale_id: saleId, last_payment: lastPayment, amount: amountPaid }),
             })
             .then(response => {
                 if (response.ok) {
@@ -1087,13 +1427,18 @@
                 alert(data.message);
                 closeModal('paymentModal')
                 showSupplierRecentSales('{{ user_id }}'); // Refresh sales data
+                fetchRecentSales(clientId); // Refresh debt, recent sales, recent transactions in client profile
+                fetchRecentPayments(clientId);
+                fetchClientStatus(clientId);
             })
             .catch(error => console.error('Error processing payment:', error));
         });
         
-        function openPaymentModal(saleId, clientId) {
+        function openPaymentModal(saleId, clientId, paidAmount) {
             document.getElementById('saleIdInput').value = saleId;
             document.getElementById('paymentClientId').value = clientId;
+            document.getElementById('lastPayment').value = paidAmount;
+            document.getElementById('amountPaidInput').value = '';
             openModal('paymentModal');        
         }
 
@@ -1134,8 +1479,6 @@
             })
             .then(data => {
                 let sales = data.sale_data;
-
-                console.log("products are : ", sales);
             
                 if (sales.length === 0) {
                     salesList.innerHTML = '<li>No recent sales found.</li>';
@@ -1144,12 +1487,18 @@
             
                 sales.forEach(sale => {
                     const saleItem = document.createElement('li');
-                    console.log("sale is ,", sale);
+        
+                    let payButton = '';
+                    if (sale.paid_amount < sale.total_amount) {
+                        payButton = `<button class="pay-btn" data-sale-id="${sale.sale_id}" data-client-id="${sale.client}" data-paid-amount="${sale.paid_amount || 0}">Pay</button>`;
+                    }
+
                     saleItem.innerHTML = `
                         <strong>${sale.sale_id}</strong> Amount: ${sale.total_amount} Date: ${sale.date}
                         <button class="view-products-btn" data-products='${JSON.stringify(sale.products)}'>View Products</button>
-                        <button class="pay-btn" data-sale-id="${sale.sale_id}" data-client-id="${sale.client}">Pay</button>
+                        ${payButton} Paid: ${sale.paid_amount || 0}
                     `;
+
                     salesList.appendChild(saleItem);
                 });
 
@@ -1158,7 +1507,8 @@
                     button.addEventListener('click', function () {
                         const saleId = this.getAttribute('data-sale-id');
                         const clientId = this.getAttribute('data-client-id');
-                        openPaymentModal(saleId, clientId);
+                        const paidAmount = this.getAttribute('data-paid-amount');
+                        openPaymentModal(saleId, clientId, paidAmount);
                     });
                 });
 

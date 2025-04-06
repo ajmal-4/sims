@@ -2,6 +2,7 @@ from flask import jsonify
 from .db import db
 from pymongo import DESCENDING
 from .constants import SuccessMessages, ErrorMessages, Projections, PaymentStatus, TransactionType, Limits
+from datetime import datetime
 
 class CommonServices:
 
@@ -13,6 +14,7 @@ class CommonServices:
         self.transactions = db.get_collection('transactions')
         self.users = db.get_collection('users')
         self.regulars = db.get_collection('regulars')
+        self.debt = db.get_collection('debt')
 
     # For authenticating the user - returns the user_type if the user is valid else returns None
     def authenticate_user(self, username, password):
@@ -174,6 +176,46 @@ class CommonServices:
             print(f"Exception in get_supplier_products : {str(e)}")
             return None
     
+    def get_product_details(self, product_list: list[dict]):
+        try:
+
+            pipeline = [
+                {
+                    "$match": {
+                        "product_id": {"$in": [item["product_id"] for item in product_list]}
+                    }
+                },
+                {
+                    "$project": {
+                        **Projections.EXCLUDE_ID,  # Exclude MongoDB Object ID
+                        "product_id": 1,
+                        "product_name": 1,
+                        "product_price": 1
+                    }
+                }
+            ]
+
+            product_details = list(self.products.aggregate(pipeline))
+
+            # Merge with quantity and calculate total amount
+            final_products = []
+            total_amount = 0
+            for product in product_details:
+                matching_product = next((p for p in product_list if p["product_id"] == product["product_id"]), None)
+                if matching_product:
+                    total_amount += int(product["product_price"]) * matching_product["quantity"]
+                    final_products.append({
+                        "product_name": product["product_name"],
+                        "price": product["product_price"],
+                        "quantity": matching_product["quantity"],
+                    })
+            
+            return final_products, total_amount
+            
+        except Exception as e:
+            print(f"Exception in get_supplier_products : {str(e)}")
+            return None
+    
     
     # # # Sales # # #
 
@@ -205,6 +247,18 @@ class CommonServices:
             print(f"Exception in get_supplier_sales : {str(e)}")
             return None
     
+    def get_individual_sales_data(self, user_id, sale_id):
+        try:
+            result = self.sales.find_one({"supplier":str(user_id), "sale_id": sale_id}, Projections.EXCLUDE_ID)
+            if result:
+                return result
+            else:
+                return None
+
+        except Exception as e:
+            print(f"Exception in get_individual_sales_data : {str(e)}")
+            return None
+    
     def get_supplier_last_sale_data(self, query):
         """ Returns the last sale data of the supplier """
         try:
@@ -223,7 +277,48 @@ class CommonServices:
         except Exception as e:
             print(f"Exception in get_supplier_recent_sales_data : {str(e)}")
             return None
+    
+    def get_client_total_purchase_amount(self, client, user):
+        try:
 
+            total_purchase = list(self.sales.aggregate([
+                {"$match": {"client" : client, "supplier" : user}},
+                {"$group": {"_id": "$client", "totalAmount": {"$sum": "$amount"}}}
+            ]))
+
+            total_amount = total_purchase[0].get('totalAmount',0) if total_purchase else 0
+            return total_amount
+
+        except Exception as e:
+            print(f"Exception in get_client_total_purchase_amount : {str(e)}")
+            return None
+    
+    def get_client_total_credit_amount(self, client, user):
+        try:
+
+            total_credits = list(self.transactions.aggregate([
+                {"$match": {"client" : client, "supplier" : user, "transaction_type": "credit"}},
+                {"$group": {"_id": "$client", "totalAmount": {"$sum": "$amount"}}}
+            ]))
+
+            total_amount = total_credits[0].get('totalAmount',0) if total_credits else 0
+            return total_amount
+
+        except Exception as e:
+            print(f"Exception in get_client_total_credit_amount : {str(e)}")
+            return None
+    
+    def get_daily_supply_status(self, date):
+        try:
+            query = {"date": {"$regex": f"^{date}"}}
+            sales_data = list(self.sales.find(query, Projections.EXCLUDE_ID))
+            result_list = [{"client_id": sale["client"], "daily_supply": sale.get("daily_supply", False)} for sale in sales_data]
+
+            return result_list
+
+        except Exception as e:
+            print(f"Exception in get_daily_supply_status : {str(e)}")
+            return None
     
 
     # ----------------------------------- #
@@ -294,7 +389,11 @@ class CommonServices:
             if kwargs.get("paid_amount"):
                 update_data = {"paid_amount": kwargs.get("paid_amount")}
             else:
-                pass
+                update_data = {
+                    "products": kwargs.get("products"),
+                    "total_amount": kwargs.get("total_amount"),
+                    "last_updated_date": str(datetime.now())
+                }
             
             result = self.sales.update_one(
                         {'sale_id': sale_id}, 
@@ -351,6 +450,42 @@ class CommonServices:
             print(f"Exception in save_transaction_to_db : {str(e)}")
             return False
     
+    
+    def update_client_debt(self, client, supplier, transaction_type : TransactionType, amount, date):
+        try:
+
+            if transaction_type == TransactionType.CREDIT:
+                amount = -amount
+            
+            result = self.debt.update_one(
+                {"client": client, "supplier": str(supplier)},
+                {"$inc": {"amount":amount}, "$set": {"last_updated_date":date}},
+                upsert=True
+            )
+
+            if result.modified_count > 0:
+                return True
+            else:
+                return False
+
+        except Exception as e:
+            print(f"Exception in update_client_debt : {str(e)}")
+            return False
+    
+    def get_client_debt_status(self, client, supplier):
+        try:
+
+            query = {"client": client, "supplier": str(supplier)}
+            result = self.debt.find_one(query, Projections.EXCLUDE_ID)
+            if result:
+                return result
+            else:
+                return None
+            
+        except Exception as e:
+            print(f"Exception in get_client_debt_status : {str(e)}")
+            return None
+    
     def edit_client_from_db(self, client_id, update_data):
         try:
             result = self.clients.update_one(
@@ -383,7 +518,12 @@ class CommonServices:
             
             result = self.regulars.update_one(
                 {"client_id": str(regular_data.get("client_id"))},
-                {"$set": regular_data},
+                {
+                    "$set": regular_data,
+                    "$setOnInsert": {  # Only sets this field if it's a new document
+                        "regular_id": f"regular_{self.generate_unique_id('regulars')}"
+                    }
+                },
                 upsert=True
             )
 
@@ -408,10 +548,11 @@ class CommonServices:
             print(f"Exception in get_regular_products_from_db : {str(e)}")
             return False
     
-    def fetch_client_payment_history(self, query):
+    def  fetch_client_payment_history(self, query):
         try:
-            result = list(self.transactions.find(query, Projections.EXCLUDE_ID).sort("date", DESCENDING).limit(Limits.RECENT_SALE_DATA_LIMIT))
+            result = list(self.transactions.find(query, Projections.EXCLUDE_ID).sort("date", DESCENDING).limit(Limits.RECENT_PAYMENT_HISTORY))
             return result
         
         except Exception as e:
+            print(f"Exception in fetch_client_payment_history : {str(e)}")
             return None
