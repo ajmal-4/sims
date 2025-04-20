@@ -513,7 +513,7 @@ class Services:
             products, total_amount = self.common_service.get_product_details(data.get('products', []))
 
             sales_data = {
-                "supplier": user_id,
+                "supplier": str(user_id),
                 "client": data["client"],
                 "products": products,
                 "total_amount": total_amount,

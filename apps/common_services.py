@@ -464,6 +464,21 @@ class CommonServices:
             )
 
             if result.modified_count > 0:
+                response = self.debt.find_one({"client": client, "supplier": str(supplier)})
+                if response and "response" in response:
+                    amt = response["amount"]
+                    if amt > 0:
+                        status = "debt"
+                    elif amt < 0:
+                        status = "overpayed"
+                    else:
+                        status = "balanced"
+                    
+                    self.clients.update_one(
+                        {'client_id': client}, 
+                        {'$set': {"status": status}}
+                    )
+
                 return True
             else:
                 return False

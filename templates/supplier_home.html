@@ -295,10 +295,10 @@
                         data-client-name="{{ client.name }}" 
                         data-client-place="{{ client.place }}" 
                         data-client-route="{{ client.route_no }}" 
-                        data-client-debt="{{ client.debt }}">
+                        data-client-status="{{ client.status }}">
 
                         <strong>{{ client.name }}</strong> 
-                        Place: {{ client.place }}, Route No: {{ client.route_no }}, Debt: {{ client.debt }}
+                        {{ client.place }} Route: {{ client.route_no }}, Status: {{ client.status }}
 
                         <button class="supply-client-regular-btn" 
                             style="color: rgb(0, 17, 255); margin-left: 10px;"
@@ -329,7 +329,7 @@
             <p id="client-name"><strong>Name:</strong> </p>
             <p id="client-place"><strong>Place:</strong> </p>
             <p id="client-route"><strong>Route No:</strong> </p>
-            <p id="client-debt"><strong>Debt:</strong> </p>
+            <p id="client-status"><strong>Status:</strong> </p>
             
             <!-- edit button in client profile -->
             <button 
@@ -418,6 +418,12 @@
                 class="delete-client-btn"
                 style="color: red; margin-left: 10px;">
                 Delete
+            </button>
+
+            <button
+                class="update-client-map-btn"
+                style="color: aqua; margin-left: 10px;">
+                Update map
             </button>
 
             <!-- Client Status -->
@@ -813,7 +819,7 @@
         }
 
         // Show Client Profile
-        function showClientProfile(clientId, name, place, routeNo, debt) {
+        function showClientProfile(clientId, name, place, routeNo, status) {
             
             const profileDiv = document.getElementById('client-profile');
         
@@ -822,22 +828,24 @@
             profileDiv.setAttribute('data-client-name', name);
             profileDiv.setAttribute('data-client-place', place);
             profileDiv.setAttribute('data-client-route', routeNo);
-            profileDiv.setAttribute('data-client-debt', debt);
+            profileDiv.setAttribute('data-client-status', status);
         
             // Populate profile details
             document.getElementById('client-name').innerText = `Name: ${name}`;
             document.getElementById('client-place').innerText = `Place: ${place}`;
             document.getElementById('client-route').innerText = `Route No: ${routeNo}`;
-            document.getElementById('client-debt').innerText = `Debt: ${debt}`;
+            document.getElementById('client-status').innerText = `Debt: ${status}`;
             
             // Set data attributes for both buttons
             const deleteButton = profileDiv.querySelector('.delete-client-btn');
             const editButton = profileDiv.querySelector('.edit-client-btn');
-            const addRegularButton = profileDiv.querySelector('.add-client-regular-btn')
+            const addRegularButton = profileDiv.querySelector('.add-client-regular-btn');
+            const updateMapButton = profileDiv.querySelector('.update-client-map-btn');
             
             deleteButton.setAttribute('data-client-id', clientId);
             editButton.setAttribute('data-client-id', clientId);
             addRegularButton.setAttribute('data-client-id', clientId);
+            updateMapButton.setAttribute('data-client-id', clientId);
         
             fetchRecentSales(clientId);
             fetchRecentPayments(clientId);
@@ -862,8 +870,8 @@
                 const name = listItem.getAttribute('data-client-name');
                 const place = listItem.getAttribute('data-client-place');
                 const routeNo = listItem.getAttribute('data-client-route');
-                const debt = listItem.getAttribute('data-client-debt');
-                showClientProfile(clientId, name, place, routeNo, debt);
+                const status = listItem.getAttribute('data-client-status');
+                showClientProfile(clientId, name, place, routeNo, status);
             }
 
         });
@@ -907,7 +915,7 @@
                         listItem.setAttribute('data-client-route', updatedData.route_no);
                         listItem.innerHTML = `
                             <strong>${updatedData.name}</strong>
-                            Place: ${updatedData.place}, Route No: ${updatedData.route_no}, Debt: ${listItem.getAttribute('data-client-debt')}
+                            ${updatedData.place} Route: ${updatedData.route_no} Status: ${listItem.getAttribute('data-client-status')}
                         `;
                     }
                 
@@ -1118,6 +1126,12 @@
                 showSection('clients');
             }
 
+            // Handle edit map button (To be finished)
+            if (target.classList.contains('update-client-map-btn')) {
+                // const clientId = target.getAttribute('update-client-map-btn');
+                // updateMap(clientId);
+            }
+
         });
 
         // Add client
@@ -1154,11 +1168,11 @@
                     newClient.setAttribute('data-client-name', data.name);
                     newClient.setAttribute('data-client-place', data.place);
                     newClient.setAttribute('data-client-route', data.route_no);
-                    newClient.setAttribute('data-client-debt', 'None');
+                    newClient.setAttribute('data-client-status', 'balanced');
                 
                     newClient.innerHTML = `
                         <strong>${data.name}</strong> 
-                        Place: ${data.place}, Route No: ${data.route_no}, Debt: None
+                        ${data.place} Route: ${data.route_no} Status: balanced
                     `;
                     clientList.appendChild(newClient);
                 
@@ -1366,11 +1380,9 @@
                                </button>`;
                         
                         html += `<li>
-                                    <strong>${client.name}</strong> (Place: ${client.place}, Debt: ${client.debt})
+                                    <strong>${client.name}</strong> ${client.place} Route: ${client.route_no} Status: ${client.status}
                                     ${buttonHtml}
                                 </li>`;
-
-
                     });
                     html += '</ul>';
                     clientListContainer.innerHTML = html;
