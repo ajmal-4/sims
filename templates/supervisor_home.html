@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Supervisor Home</title>
+    <link rel="stylesheet" href="../static/css/style.css">
+</head>
+<body>
+    
+    <!-- Side bar -->
+    <div class="sidebar">
+        <h2>Navigation</h2>
+        <ul>
+            <li onclick="showSection('daily-route')">Daily Route</li>
+            <li onclick="showSection('clients')">Clients</li>
+            <li onclick="showSection('sales')">Sales</li>
+            <li onclick="showSection('all-routes')">Routes</li>
+            <li onclick="showSection('all-products')">Products</li>
+        </ul>
+    </div>
+
+    <input type="text" id="supplierId" placeholder="Supplier ID">
+    <input type="text" id="task" placeholder="Task Description">
+    <button onclick="assignTask()">Assign Task</button>
+
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <script src="../static/js/supervisorScript.js"></script>
+
+</body>

@@ -1,15 +1,18 @@
 from flask import render_template, request, redirect, url_for, session, jsonify
 from datetime import datetime
 from pydantic import ValidationError
+from flask_socketio import join_room, leave_room
 
 from .services import Services
 from .constants import ErrorMessages
 from .common_services import CommonServices
 from .schemas import (RegularProductsRequest, FetchClientRecentSales, FetchSupplierRecentSales, 
                       AddPayment, FetchPaymentHistory, FetchClientStatus, SupplyRegular, FetchRegularProducts,
-                      FetchDailyClients, UpdateSales)
+                      FetchDailyClients, UpdateSales, AddDailyExpense, GetDailyExpense)
 
-def define_routes(app):
+connected_users = {}
+
+def define_routes(app, socketio):
     """Define all application routes."""
     try:
         services = Services()
@@ -19,6 +22,51 @@ def define_routes(app):
         @app.route('/')
         def index():
             return "Welcome to the Sims App!"
+        
+        # Websocket connection
+        @socketio.on('connect')
+        def on_connect():
+            print(f"New client connected: {request.sid}")
+        
+        @socketio.on('join')
+        def handle_join(data):
+            user_id = data.get("user_id")
+            role = data.get("role")
+            sid = request.sid
+
+            if user_id:
+                connected_users[sid] = {
+                    "user_id": user_id,
+                    "role": role
+                }
+
+                join_room(user_id)
+
+                print(f"{role} '{user_id}' joined. SID: {sid}")
+                socketio.emit("user_connected", {"message": f"{user_id} connected"})
+        
+        @socketio.on('disconnect')
+        def on_disconnect():
+            sid = request.sid
+            user = connected_users.pop(sid, None)
+            if user:
+                leave_room(user["user_id"])
+                print(f"{user['role']} '{user['user_id']}' disconnected.")
+            else:
+                print(f"Unknown user disconnected. SID: {sid}")
+        
+        @socketio.on('assign_task')
+        def assign_task(data):
+            supplier_id = data.get("supplier_id")
+            task = data.get("task")
+
+            # Example: Save to DB (you can use your service here)
+            # services.save_assignment(...)
+
+            # Send task to that supplier
+            socketio.emit("new_assignment", {"task": task}, room=supplier_id)
+            print(f"Task sent to supplier: {supplier_id}")
+
 
         # Login Page - (Suppliers, Supervisors, Managers)
         @app.route('/login', methods=['GET', 'POST'])
@@ -177,7 +225,6 @@ def define_routes(app):
             if data:
                 return services.get_last_sales(user_id, data)
         
-        # To be finished
         @app.route('/update_sales/<int:user_id>', methods=['PUT'])
         def update_sales(user_id):
             try:
@@ -248,5 +295,24 @@ def define_routes(app):
                 print(f"Exception in /supply_regular : {str(e)}")
                 return jsonify({"message": ErrorMessages.SUPPLY_REGULAR}), 500
     
+        @app.route('/supplier/<int:user_id>/add_daily_expense', methods=['POST'])
+        def add_daily_expense(user_id):
+            try:
+                data = AddDailyExpense.model_validate(request.get_json())
+                return services.add_daily_expense(user_id, data.model_dump())
+            
+            except ValidationError as e:
+                print(f"Exception in /add_daily_expense : {str(e)}")
+                return jsonify({"message": ErrorMessages.ADD_DAILY_EXPENSE}), 500
+
+        @app.route('/supplier/<int:user_id>/get_daily_expense', methods=['GET', 'POST'])
+        def get_daily_expense(user_id):
+            try:
+                data = GetDailyExpense.model_validate(request.get_json())
+                return services.get_daily_expense(user_id, data.model_dump())
+            except ValidationError as e:
+                print(f"Exception in /get_daily_expense : {str(e)}")
+                return jsonify({"message": ErrorMessages.GET_DAILY_EXPENSE}), 500
+
     except Exception as e:
         print(f"Exception in define routes : {str(e)}")

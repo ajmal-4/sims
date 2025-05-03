@@ -191,6 +191,23 @@
         button:hover {
             background-color: #575757;
         }
+
+        /* Add expense */
+        .category-btn {
+          margin: 5px;
+          padding: 10px;
+          background-color: lightgray;
+          border: none;
+          cursor: pointer;
+        }
+        .category-btn.active {
+          background-color: #007bff;
+          color: white;
+        }
+        .expense-entry {
+          margin-top: 10px;
+        }
+
     </style>
 </head>
 <body>
@@ -628,13 +645,52 @@
             </div>
         </div>
 
+        <!-- Add daily expense modal -->
+        <div id="addDailyExpense" class="modal">
+            <div class="modal-content">
+                <div class="categories">
+                    <button class="category-btn" data-category="petrol">Petrol</button>
+                    <button class="category-btn" data-category="food">Food</button>
+                    <button class="category-btn" data-category="other">Other</button>
+                </div>
 
+                <div id="input-form" style="margin-top: 10px;">
+                    <label>Amount: <input type="number" id="expense-amount" required></label>
+                    <label>Note: <input type="text" id="expense-note"></label>
+                    <button id="add-entry-btn">+</button>
+                </div>
+              
+                <div id="expense-entries-container" style="margin-top: 20px;">
+                    <!-- Category-based entries will appear here -->
+                </div>
+
+                <button id="submit-expenses-btn" style="margin-top: 20px;">Submit Expenses</button>
+            
+            </div>
+
+        </div>
     </div>
 
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
     <script>
 
         // Define the supplier id 
         var user_id = "{{ user_id }}";
+
+        const socket = io("http://localhost:5000");
+
+        // Websocket connection
+        socket.on('connect', () => {
+            socket.emit('join', {
+                user_id: user_id,  // or manager001
+                role: "supplier"         // or manager
+            });
+        });
+
+        socket.on("new_assignment", (data) => {
+            debugger;
+            alert("New Task: " + data.task);
+        });
 
         // Show the main sections
         function showSection(sectionId) {
@@ -1314,21 +1370,169 @@
             });
         }
 
-        document.addEventListener("DOMContentLoaded", function() {
-            const modal = document.getElementById('supplyClientRegulars');
+        // document.addEventListener("DOMContentLoaded", function() {
+        //     const modal = document.getElementById('supplyClientRegulars');
 
-            modal.querySelectorAll("input[name='product_ids']").forEach(checkbox => {
-                checkbox.addEventListener("change", function () {
-                    const qtyInput = modal.querySelector(`#qty_${this.value}`);
-                    if (this.checked) {
-                        qtyInput.disabled = false;
-                    } else {
-                        qtyInput.disabled = true;
-                        qtyInput.value = "";
+        //     modal.querySelectorAll("input[name='product_ids']").forEach(checkbox => {
+        //         checkbox.addEventListener("change", function () {
+        //             const qtyInput = modal.querySelector(`#qty_${this.value}`);
+        //             if (this.checked) {
+        //                 qtyInput.disabled = false;
+        //             } else {
+        //                 qtyInput.disabled = true;
+        //                 qtyInput.value = "";
+        //             }
+        //         });
+        //     });
+        // });
+
+        function setupModal() {
+            const modal = document.getElementById('addDailyExpense');
+            const categoryButtons = modal.querySelectorAll('.category-btn');
+            const addBtn = document.getElementById('add-entry-btn');
+            const submitBtn = document.getElementById('submit-expenses-btn');
+            let selectedCategory = 'food'; // Default category
+
+            // Create category sections below
+            const container = document.getElementById('expense-entries-container');
+            container.innerHTML = ''; // Clear previous entries
+            ['petrol', 'food', 'other'].forEach(cat => {
+                const section = document.createElement('div');
+                section.id = `section-${cat}`;
+                section.className = 'expense-section';
+                section.innerHTML = `<h4>${capitalize(cat)}</h4><ul class="expense-list"></ul>`;
+                container.appendChild(section);
+            });
+
+            // Category selection behavior
+            categoryButtons.forEach(btn => {
+                btn.onclick = () => {
+                    categoryButtons.forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    selectedCategory = btn.dataset.category;
+                };
+            });
+
+            // Default category button click
+            const defaultBtn = modal.querySelector('[data-category="food"]');
+            if (defaultBtn) defaultBtn.click();
+
+            // Fetch existing data from DB and populate
+            const selectedDate = document.getElementById('date').value;
+            fetch(`/supplier/${user_id}/get_daily_expense`,{
+                method: 'POST',
+                headers: {
+                    "content-Type": "application/json",
+                },
+                body: JSON.stringify({ date: selectedDate })
+            })
+                .then(res => res.json())
+                .then(data => {
+                    Object.entries(data?.expense?.expenses).forEach(([category, entries]) => {
+                        const list = document.querySelector(`#section-${category} .expense-list`);
+                        if (list) {
+                            entries.forEach(entry => {
+                                const li = document.createElement('li');
+                                li.textContent = `₹${entry.expense}` + (entry.note ? ` - ${entry.note}` : '');
+                                list.appendChild(li);
+                            });
+                        }
+                    });
+                })
+                .catch(err => {
+                    console.error('Error fetching daily expenses:', err);
+                });
+
+            // Add expense entry behavior
+            addBtn.onclick = () => {
+                const amountInput = document.getElementById('expense-amount');
+                const noteInput = document.getElementById('expense-note');
+                const amount = amountInput.value.trim();
+                const note = noteInput.value.trim();
+
+                // Validation checks
+                if (!selectedCategory) {
+                    alert("Please select a category.");
+                    return;
+                }
+                if (!amount) {
+                    alert("Please enter an amount.");
+                    return;
+                }
+
+                // Create the entry and append it to the selected category
+                const section = document.getElementById(`section-${selectedCategory}`);
+                const list = section.querySelector('.expense-list');
+                const li = document.createElement('li');
+                li.textContent = `₹${amount}` + (note ? ` - ${note}` : '');
+                list.appendChild(li);
+
+                // Reset the input fields
+                amountInput.value = '';
+                noteInput.value = '';
+
+                submitBtn.onclick = submitExpenses;
+            };
+        }
+
+        function capitalize(str) {
+            return str.charAt(0).toUpperCase() + str.slice(1);
+        }
+
+        function submitExpenses() {
+            const expenses = {
+                petrol: [],
+                food: [],
+                other: []
+            };
+        
+            ['petrol', 'food', 'other'].forEach(cat => {
+                const listItems = document.querySelectorAll(`#section-${cat} .expense-list li`);
+                listItems.forEach(item => {
+                    const text = item.textContent;
+                    const match = text.match(/^₹(\d+)(?: - (.*))?$/);
+                    if (match) {
+                        const expense = match[1];
+                        const note = match[2] || '';
+                        expenses[cat].push({ expense, note });
                     }
                 });
             });
-        });
+
+            const selectedDate = document.getElementById('date').value;
+        
+            let data = {
+                date: selectedDate,
+                expense: expenses
+            }
+            // Call your API
+            fetch(`/supplier/${user_id}/add_daily_expense`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(data),
+            })
+            .then(res => {
+                if (!res.ok) throw new Error('Network response was not ok');
+                return res.json();
+            })
+            .then(response => {
+                alert('Expenses submitted successfully!');
+                console.log(response);
+            })
+            .catch(err => {
+                console.error('Error submitting expenses:', err);
+                alert('Failed to submit expenses.');
+            });
+        }
+
+        function addDailyExpense() {
+            const selectedDate = document.getElementById('date').value;
+            openModal('addDailyExpense');
+            // setup add expense modal
+            setupModal();
+        }
         
         function fetchDailyClients() {
             const selectedDate = document.getElementById('date').value;
@@ -1366,10 +1570,18 @@
                 document.getElementById('route-info').textContent = selectedRoutes.join(', ') || 'N/A';
                 document.getElementById('selected-date').textContent = selectedDate;
 
+                let html = "";
+                html += `
+                    <button id="add-expense-btn" 
+                            style="background-color: #28a745; color: white; padding: 8px 12px; margin-bottom: 15px; border: none; border-radius: 4px; cursor: pointer;">
+                        Add Expense
+                    </button>
+                `;
+
                 // Display the clients
                 const clientListContainer = document.getElementById('client-list-container');
                 if (data.clients && data.clients.length > 0) {
-                    let html = '<ul>';
+                    html += '<ul>';
                     data.clients.forEach(client => {
                         let buttonHtml = client.supplied 
                             ? `<span style="color: green; font-weight: bold;">Supplied</span>` 
@@ -1407,6 +1619,11 @@
             if (target.classList.contains("supply-client-regular-btn")) {
                 const clientId = target.getAttribute('data-client-id');
                 getRegularProducts(clientId)
+            }
+
+            // Handle "Add Expense" button click
+            if (target.id === "add-expense-btn") {
+                addDailyExpense();
             }
         });
 

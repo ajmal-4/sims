@@ -14,6 +14,7 @@ class SuccessMessages:
     UPDATE_REGULAR_PRODUCTS = "Client regular product details updated successfully"
     ADD_SALES_PAYMENT = "Updated payment information"
     FETCH_CLIENT_STATUS = "Successfully fetched client status"
+    ADD_DAILY_EXPENSE = "Successfully updated daily expense"
 
 
 class ErrorMessages:
@@ -32,6 +33,8 @@ class ErrorMessages:
     FETCH_CLIENT_STATUS = "Failed to fetch client status"
     SUPPLY_REGULAR = "Failed to supply client regular items"
     FETCH_DAILY_ROUTE_CLIENTS = "Failed to fetch daily route clients"
+    ADD_DAILY_EXPENSE = "Failed to add daily expense"
+    GET_DAILY_EXPENSE = "Failed to get the daily expense"
 
 class Limits:
     LAST_SALE_DATA_LIMIT = 1

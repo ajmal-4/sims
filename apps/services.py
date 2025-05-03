@@ -525,3 +525,29 @@ class Services:
         except Exception as e:
             print(f"Exception in supply_regular : {str(e)}")
             return None
+
+    def add_daily_expense(self, user_id, data):
+        try:
+            selected_date = data["date"]
+            expenses = data["expense"]
+
+            success = self.common_service.insert_supplier_daily_expense(user_id, selected_date, expenses)
+            if success:
+                return jsonify({"success": True, "message": SuccessMessages.ADD_DAILY_EXPENSE}), 200
+            
+            return jsonify({"success": False, "message": ErrorMessages.ADD_DAILY_EXPENSE}), 500
+            
+        except Exception as e:
+            print(f"Exception in add_daily_expense : {str(e)}")
+            return jsonify({"success": False, "message": ErrorMessages.ADD_DAILY_EXPENSE}), 404
+    
+    def get_daily_expense(self, user_id, data):
+        try:
+            data = self.common_service.fetch_supplier_daily_expense(user_id, data["date"])
+            if data:
+                return jsonify({"success": True, "expense": data}), 200
+            else:
+                return jsonify({"success": False, "expense": {}, "message": ErrorMessages.GET_DAILY_EXPENSE}), 200
+
+        except Exception as e:
+            print(f"Exception in get_daily_expense : {str(e)}")

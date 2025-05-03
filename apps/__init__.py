@@ -1,6 +1,9 @@
 import os
 from flask import Flask
 from .routes import define_routes
+from flask_socketio import SocketIO
+
+socketio = SocketIO(cors_allowed_origins="*")
 
 def create_app():
 
@@ -10,6 +13,8 @@ def create_app():
     app.secret_key = os.getenv("SECRET_KEY", "abcdefg")
 
     # Register routes
-    define_routes(app)
+    define_routes(app, socketio)
 
-    return app
+    socketio.init_app(app)
+    
+    return app, socketio

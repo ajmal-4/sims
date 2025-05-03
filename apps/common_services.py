@@ -15,6 +15,7 @@ class CommonServices:
         self.users = db.get_collection('users')
         self.regulars = db.get_collection('regulars')
         self.debt = db.get_collection('debt')
+        self.daily_expense = db.get_collection('daily_expense')
 
     # For authenticating the user - returns the user_type if the user is valid else returns None
     def authenticate_user(self, username, password):
@@ -463,7 +464,7 @@ class CommonServices:
                 upsert=True
             )
 
-            if result.modified_count > 0:
+            if result.modified_count > 0 or result.upserted_id is not None:
                 response = self.debt.find_one({"client": client, "supplier": str(supplier)})
                 if response and "response" in response:
                     amt = response["amount"]
@@ -570,4 +571,31 @@ class CommonServices:
         
         except Exception as e:
             print(f"Exception in fetch_client_payment_history : {str(e)}")
+            return None
+    
+    def insert_supplier_daily_expense(self, user_id, selected_date, expenses):
+        try:
+            result = self.daily_expense.update_one(
+                {"supplier": str(user_id)},
+                {"$set": {"date": selected_date, "expenses": expenses}},
+                upsert=True
+            )
+
+            if result.modified_count > 0 or result.upserted_id is not None:
+                return True
+            else:
+                return False
+            
+        except Exception as e:
+            print(f"Exception in insert_supplier_daily_expense : {str(e)}")
+            return False
+    
+    def fetch_supplier_daily_expense(self, user_id, selected_date):
+        try:
+            query = {"supplier":str(user_id), "date": selected_date}
+            result = self.daily_expense.find_one(query, Projections.EXCLUDE_ID)
+            return result
+        
+        except Exception as e:
+            print(f"Exception in fetch_supplier_daily_expense : {str(e)}")
             return None

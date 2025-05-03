@@ -48,3 +48,10 @@ class SaveSales(BaseModel, extra="allow"):
 
 class UpdateSales(SaveSales, extra="allow"):
     sale_id: str = Field(..., description="Id of the sales data to be edited")
+
+class AddDailyExpense(BaseModel, extra="allow"):
+    date: str = Field(..., description="Chosen date of the supply")
+    expense: dict = Field(..., description="List of expenses")
+
+class GetDailyExpense(BaseModel, extra="allow"):
+    date: str = Field(..., description="Chosen date of the supply")
