@@ -208,6 +208,18 @@
           margin-top: 10px;
         }
 
+        /* Routes */
+        .route-header {
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+        }
+
+        .dropdown-icon {
+            margin-right: 8px;
+            transition: transform 0.2s;
+        }
+
     </style>
 </head>
 <body>
@@ -487,29 +499,38 @@
                         
                         <label for="route_no">Route Number:</label>
                         <input type="text" id="route_no" name="route_no" required><br><br>
-
                         <button type="submit">Add Route</button>
                     </form>
                 </div>
             </div>
 
-
             {% if routes %}
-                <ul>
+                <ul class="client-list">
                     {% for route in routes %}
-                        <li>
-                            <strong>{{ route.route_no }}</strong>
+                        <li class="route-item">
+                            <div class="route-header" onclick="toggleClients('{{ route.route_no }}')">
+                                <span class="dropdown-icon" id="icon-{{ route.route_no }}">&#9654;</span>
+                                <strong>{{ route.route_no }}</strong>
+                            </div>
+                        
+                            <ul class="client-list hidden" id="clients-{{ route.route_no }}">
+                                {% set ns = namespace(has_clients=False) %}
+                                {% for client in clients %}
+                                    {% if client.route_no == route.route_no %}
+                                        {% set ns.has_clients = True %}
+                                        <li>
+                                            <strong>{{ client.name }}</strong> 
+                                            (Client ID: {{ client.client_id }}, Place: {{ client.place }}, Route No: {{ client.route_no }}, Debt : {{ client.debt }})
+                                        </li>
+                                    {% endif %}
+                                {% endfor %}
+                            
+                                {% if not ns.has_clients %}
+                                    <li><em>Clients are empty</em></li>
+                                {% endif %}
+                            </ul>                            
+                            
                         </li>
-                        <div class="client-list">
-                            {% for client in clients %}
-                            {% if client.route_no == route.route_no %}
-                                <li>
-                                    <strong>{{ client.name }}</strong> 
-                                    (Client ID: {{ client.client_id }}, Place: {{ client.place }}, Route No: {{ client.route_no }}, Debt : {{ client.debt }})
-                                </li>
-                            {% endif %}
-                            {% endfor %}
-                        </div>
                     {% endfor %}
                 </ul>
             {% else %}
@@ -1528,7 +1549,6 @@
         }
 
         function addDailyExpense() {
-            const selectedDate = document.getElementById('date').value;
             openModal('addDailyExpense');
             // setup add expense modal
             setupModal();
@@ -1610,6 +1630,7 @@
             })
             .catch(error => {
                 console.error('Error fetching clients:', error);
+                alert('No clients present on that route');
             });
         }
 
@@ -1756,6 +1777,23 @@
         document.querySelector('li[onclick="showSection(\'sales\')"]').addEventListener('click', function () {
             showSupplierRecentSales('{{ user_id }}');
         });
+
+        // =========================================================//
+        //                      Routes Section                      //
+        // =========================================================//
+
+        function toggleClients(routeNo) {
+            const clientList = document.getElementById('clients-' + routeNo);
+            const icon = document.getElementById('icon-' + routeNo);
+
+            if (clientList.classList.contains('hidden')) {
+                clientList.classList.remove('hidden');
+                icon.innerHTML = '&#9660;'; // ▼
+            } else {
+                clientList.classList.add('hidden');
+                icon.innerHTML = '&#9654;'; // ▶
+            }
+        }
 
     </script>
 </body>
