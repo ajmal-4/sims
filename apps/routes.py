@@ -8,7 +8,7 @@ from .constants import ErrorMessages
 from .common_services import CommonServices
 from .schemas import (RegularProductsRequest, FetchClientRecentSales, FetchSupplierRecentSales, 
                       AddPayment, FetchPaymentHistory, FetchClientStatus, SupplyRegular, FetchRegularProducts,
-                      FetchDailyClients, UpdateSales, AddDailyExpense, GetDailyExpense)
+                      FetchDailyClients, UpdateSales, AddDailyExpense, GetDailyExpense, UpdateLocation, GetLocation)
 
 connected_users = {}
 
@@ -313,6 +313,27 @@ def define_routes(app, socketio):
             except ValidationError as e:
                 print(f"Exception in /get_daily_expense : {str(e)}")
                 return jsonify({"message": ErrorMessages.GET_DAILY_EXPENSE}), 500
+        
+        ### Location
+        ##################
+
+        @app.route('/supplier/<int:user_id>/update_location', methods=['GET', 'POST'])
+        def update_location(user_id):
+            try:
+                data = UpdateLocation.model_validate(request.get_json())
+                return services.update_location(user_id, data.model_dump())
+            except ValidationError as e:
+                print(f"Exception in /update_location : {str(e)}")
+                return jsonify({"message": ErrorMessages.UPDATE_LOCATION}), 500
+        
+        @app.route('/supplier/<int:user_id>/get_location', methods=['GET', 'POST'])
+        def get_location(user_id):
+            try:
+                data = GetLocation.model_validate(request.get_json())
+                return services.fetch_location(user_id, data.model_dump())
+            except ValidationError as e:
+                print(f"Exception in /update_location : {str(e)}")
+                return jsonify({"message": ErrorMessages.UPDATE_LOCATION}), 500       
 
     except Exception as e:
         print(f"Exception in define routes : {str(e)}")

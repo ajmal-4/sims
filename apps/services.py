@@ -530,8 +530,9 @@ class Services:
         try:
             selected_date = data["date"]
             expenses = data["expense"]
+            total_amount = data["total_amount"]
 
-            success = self.common_service.insert_supplier_daily_expense(user_id, selected_date, expenses)
+            success = self.common_service.insert_supplier_daily_expense(user_id, selected_date, expenses, total_amount)
             if success:
                 return jsonify({"success": True, "message": SuccessMessages.ADD_DAILY_EXPENSE}), 200
             
@@ -551,3 +552,34 @@ class Services:
 
         except Exception as e:
             print(f"Exception in get_daily_expense : {str(e)}")
+            return jsonify({"success": False, "message": ErrorMessages.GET_DAILY_EXPENSE}), 404
+    
+    def update_location(self, user_id, data):
+        try:
+            client = data["client_id"]
+            latitude = data["latitude"]
+            longitude = data["longitude"]
+
+            success = self.common_service.update_client_location(user_id, client, latitude, longitude)
+            if success:
+                return jsonify({"success": True, "message": SuccessMessages.UPDATE_LOCATION}), 200
+            
+            return jsonify({"success": False, "message": ErrorMessages.UPDATE_LOCATION}), 500
+
+        except Exception as e:
+            print(f"Exception in get_daily_expense : {str(e)}")
+            return jsonify({"success": False, "message": ErrorMessages.UPDATE_LOCATION}), 404
+    
+    def fetch_location(self, user_id, data):
+        try:
+            client = data["client_id"]
+
+            result = self.common_service.fetch_client_location(user_id, client)
+            if result:
+                return jsonify({"success": True, "location": result, "message": SuccessMessages.GET_LOCATION}), 200
+            
+            return jsonify({"success": False, "location": None, "message": ErrorMessages.GET_LOCATION}), 500
+
+        except Exception as e:
+            print(f"Exception in get_daily_expense : {str(e)}")
+            return jsonify({"success": False, "location": None, "message": ErrorMessages.GET_LOCATION}), 404

@@ -573,11 +573,11 @@ class CommonServices:
             print(f"Exception in fetch_client_payment_history : {str(e)}")
             return None
     
-    def insert_supplier_daily_expense(self, user_id, selected_date, expenses):
+    def insert_supplier_daily_expense(self, user_id, selected_date, expenses, total_amount):
         try:
             result = self.daily_expense.update_one(
-                {"supplier": str(user_id)},
-                {"$set": {"date": selected_date, "expenses": expenses}},
+                {"supplier": str(user_id), "date": selected_date},
+                {"$set": {"expenses": expenses, "total_amount": total_amount}},
                 upsert=True
             )
 
@@ -598,4 +598,41 @@ class CommonServices:
         
         except Exception as e:
             print(f"Exception in fetch_supplier_daily_expense : {str(e)}")
+            return None
+    
+    def update_client_location(self, supplier, client, latitude, longitude):
+        try:
+
+            position = {
+                "latitude": latitude,
+                "longitude": longitude
+            }
+            result = self.clients.update_one(
+                {"client_id": str(client), "supplier": str(supplier)},
+                {"$set": {"position": position}},
+                upsert=True
+            )
+
+            if result.modified_count > 0 or result.upserted_id is not None or result.matched_count > 0:
+                return True
+            else:
+                return False
+            
+        except Exception as e:
+            print(f"Exception in update_client_location : {str(e)}")
+            return False
+    
+    def fetch_client_location(self, supplier, client):
+        try:
+
+            query = {"client_id": str(client), "supplier": str(supplier)}
+            result = self.clients.find_one(query, {"_id": 0, "position": 1})
+
+            if result:
+                return result.get("position", None)
+            
+            return None
+            
+        except Exception as e:
+            print(f"Exception in fetch_client_location : {str(e)}")
             return None

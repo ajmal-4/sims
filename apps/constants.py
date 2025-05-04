@@ -15,6 +15,8 @@ class SuccessMessages:
     ADD_SALES_PAYMENT = "Updated payment information"
     FETCH_CLIENT_STATUS = "Successfully fetched client status"
     ADD_DAILY_EXPENSE = "Successfully updated daily expense"
+    UPDATE_LOCATION = "Successfully updated client's location"
+    GET_LOCATION = "Successfully received client's location"
 
 
 class ErrorMessages:
@@ -35,6 +37,8 @@ class ErrorMessages:
     FETCH_DAILY_ROUTE_CLIENTS = "Failed to fetch daily route clients"
     ADD_DAILY_EXPENSE = "Failed to add daily expense"
     GET_DAILY_EXPENSE = "Failed to get the daily expense"
+    UPDATE_LOCATION = "Failed to update the location"
+    GET_LOCATION = "Failed to fetch the location"
 
 class Limits:
     LAST_SALE_DATA_LIMIT = 1

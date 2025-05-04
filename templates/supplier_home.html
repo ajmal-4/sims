@@ -448,7 +448,8 @@
                 style="color: red; margin-left: 10px;">
                 Delete
             </button>
-
+            
+            <!-- Map Updation Button -->
             <button
                 class="update-client-map-btn"
                 style="color: aqua; margin-left: 10px;">
@@ -685,10 +686,37 @@
                     <!-- Category-based entries will appear here -->
                 </div>
 
+                <div id="total-amount" style="margin-top: 10px; font-weight: bold;">Total: ₹0</div>
+                
                 <button id="submit-expenses-btn" style="margin-top: 20px;">Submit Expenses</button>
             
             </div>
 
+        </div>
+
+        <div id="updateMap" class="modal">
+            <div class="modal-content">
+
+                <div id="map-container" style="margin-top: 20px;"></div>
+
+                <div id="location-section" style="margin-top: 20px;">
+                    <button id="location-btn">Update Location</button>
+                    <div id="location-options" style="display: none; margin-top: 10px;">
+                        <button id="use-current-location">Choose Current Location</button>
+                        <button id="manual-location">Enter Location Manually</button>
+                
+                        <div id="manual-location-form" style="display: none; margin-top: 10px;">
+                            <label>Latitude: <input type="text" id="manual-lat" placeholder="e.g., 12.9716"></label>
+                            <label>Longitude: <input type="text" id="manual-lon" placeholder="e.g., 77.5946"></label>
+                        </div>
+                        
+                        <div id="location-status"></div>
+                        <button id="save-location-btn" style="display: none; margin-top: 10px;">Save Location</button>
+
+                    </div>
+                </div>
+                
+            </div>
         </div>
     </div>
 
@@ -1170,6 +1198,127 @@
             }
         }
 
+        function updateMap(clientId) {
+            openModal('updateMap');
+
+            const mapContainer = document.getElementById('map-container');
+            const statusEl = document.getElementById('location-status');
+
+            fetch(`/supplier/${user_id}/get_location`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ client_id: clientId })
+            })
+            .then(response => {
+                if (response.ok) {
+                    return response.json();
+                } else {
+                    throw new Error('Failed to fetch the client');
+                }
+            })
+            .then(data => {
+                if (data && data.location) {
+                    mapContainer.innerHTML = `
+                        <iframe
+                            title="Client location"
+                            width="100%"
+                            height="300"
+                            style="border:0"
+                            src="https://www.google.com/maps?q=${data.location.latitude},${data.location.longitude}&output=embed"
+                            allowfullscreen>
+                        </iframe>
+                    `;
+                } else {
+                    mapContainer.innerHTML = `<p>No location added yet.</p>`;
+                }
+            })
+            .catch(err => {
+                console.error("Error fetching location:", err);
+                mapContainer.innerHTML = `<p>No location added yet.</p>`;
+            });
+
+            document.getElementById('location-btn').onclick = () => {
+                const options = document.getElementById('location-options');
+                options.style.display = options.style.display === 'none' ? 'block' : 'none';
+            };
+
+            document.getElementById('use-current-location').onclick = () => {
+                statusEl.textContent = "Fetching location... Please wait.";
+
+                if (!navigator.geolocation) {
+                    statusEl.textContent = "Geolocation is not supported by your browser.";
+                    return;
+                }
+                
+                navigator.geolocation.getCurrentPosition(
+                    async (position) => {                
+                        const { latitude, longitude, accuracy } = position.coords;
+                        
+                        mapContainer.innerHTML = `
+                            <iframe
+                                title="Client location"
+                                width="100%"
+                                height="300"
+                                style="border:0"
+                                src="https://www.google.com/maps?q=${latitude},${longitude}&output=embed"
+                                allowfullscreen>
+                            </iframe>
+                        `;
+                        statusEl.textContent = "Click Save Location for updating location";
+
+                        const saveBtn = document.getElementById('save-location-btn');
+                        saveBtn.style.display = 'block';
+                        saveBtn.onclick = async () => {
+                            const data = {
+                                client_id: clientId,
+                                latitude: latitude,
+                                longitude: longitude
+                            }
+
+                            fetch(`/supplier/${user_id}/update_location`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify(data)
+                            })
+                            .then(response => {
+                                saveBtn.style.display = 'none';
+                                if (response.ok) {
+                                    statusEl.textContent = "Location saved successfully!";
+                                } else {
+                                    statusEl.textContent = "Failed to save location on the server.";
+                                }
+                            })
+                            .catch(error => {
+                                saveBtn.style.display = 'none';
+                                console.error('Error:', error);
+                                statusEl.textContent = "Failed to save location on the server.";
+                            });
+                        };
+                    },
+                    (error) => {
+                        switch (error.code) {
+                            case error.PERMISSION_DENIED:
+                                statusEl.textContent = "Location access denied. Please enable it in your device or browser settings.";
+                                break;
+                            case error.POSITION_UNAVAILABLE:
+                                statusEl.textContent = "Unable to retrieve location. Ensure GPS or location services are enabled.";
+                                break;
+                            case error.TIMEOUT:
+                                statusEl.textContent = "Location request timed out. Please try again.";
+                                break;
+                            default:
+                                statusEl.textContent = "An unknown error occurred.";
+                        }
+                    },
+                    {
+                        enableHighAccuracy: true, // Enable high accuracy for all devices
+                        timeout: 10000, // Increased timeout for slower devices
+                        maximumAge: 0
+                    }
+                );
+            };
+        }
+
         // Event listener in client-profile
         document.getElementById('client-profile').addEventListener('click', function (event) {
             const target = event.target;
@@ -1203,10 +1352,10 @@
                 showSection('clients');
             }
 
-            // Handle edit map button (To be finished)
+            // Handle edit map button
             if (target.classList.contains('update-client-map-btn')) {
-                // const clientId = target.getAttribute('update-client-map-btn');
-                // updateMap(clientId);
+                const clientId = target.getAttribute('data-client-id');
+                updateMap(clientId);
             }
 
         });
@@ -1407,15 +1556,23 @@
         //     });
         // });
 
-        function setupModal() {
+        function setupExpenseModal() {
             const modal = document.getElementById('addDailyExpense');
             const categoryButtons = modal.querySelectorAll('.category-btn');
             const addBtn = document.getElementById('add-entry-btn');
             const submitBtn = document.getElementById('submit-expenses-btn');
             let selectedCategory = 'food'; // Default category
 
+            let totalAmount = 0;
+            const totalDisplay = document.getElementById('total-amount');
+
+            function updateTotalDisplay() {
+                totalDisplay.textContent = `Total: ₹${totalAmount}`;
+            }
+
             // Create category sections below
             const container = document.getElementById('expense-entries-container');
+            updateTotalDisplay()
             container.innerHTML = ''; // Clear previous entries
             ['petrol', 'food', 'other'].forEach(cat => {
                 const section = document.createElement('div');
@@ -1449,6 +1606,7 @@
             })
                 .then(res => res.json())
                 .then(data => {
+                    totalAmount = 0;
                     Object.entries(data?.expense?.expenses).forEach(([category, entries]) => {
                         const list = document.querySelector(`#section-${category} .expense-list`);
                         if (list) {
@@ -1456,9 +1614,11 @@
                                 const li = document.createElement('li');
                                 li.textContent = `₹${entry.expense}` + (entry.note ? ` - ${entry.note}` : '');
                                 list.appendChild(li);
+                                totalAmount += parseFloat(entry.expense);
                             });
                         }
                     });
+                    updateTotalDisplay();
                 })
                 .catch(err => {
                     console.error('Error fetching daily expenses:', err);
@@ -1488,70 +1648,68 @@
                 li.textContent = `₹${amount}` + (note ? ` - ${note}` : '');
                 list.appendChild(li);
 
+                totalAmount += parseFloat(amount);
+                updateTotalDisplay();
+
                 // Reset the input fields
                 amountInput.value = '';
                 noteInput.value = '';
-
-                submitBtn.onclick = submitExpenses;
             };
+
+            submitBtn.onclick = () => {
+                const expenses = {
+                    petrol: [],
+                    food: [],
+                    other: []
+                };
+            
+                ['petrol', 'food', 'other'].forEach(cat => {
+                    const listItems = document.querySelectorAll(`#section-${cat} .expense-list li`);
+                    listItems.forEach(item => {
+                        const text = item.textContent;
+                        const match = text.match(/^₹(\d+)(?: - (.*))?$/);
+                        if (match) {
+                            const expense = match[1];
+                            const note = match[2] || '';
+                            expenses[cat].push({ expense, note });
+                        }
+                    });
+                });
+            
+                const data = {
+                    date: selectedDate,
+                    expense: expenses,
+                    total_amount: totalAmount
+                };
+            
+                fetch(`/supplier/${user_id}/add_daily_expense`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data),
+                })
+                .then(res => {
+                    if (!res.ok) throw new Error('Network response was not ok');
+                    return res.json();
+                })
+                .then(response => {
+                    alert('Expenses submitted successfully!');
+                })
+                .catch(err => {
+                    console.error('Error submitting expenses:', err);
+                    alert('Failed to submit expenses.');
+                });
+            };      
+            
         }
 
         function capitalize(str) {
             return str.charAt(0).toUpperCase() + str.slice(1);
         }
 
-        function submitExpenses() {
-            const expenses = {
-                petrol: [],
-                food: [],
-                other: []
-            };
-        
-            ['petrol', 'food', 'other'].forEach(cat => {
-                const listItems = document.querySelectorAll(`#section-${cat} .expense-list li`);
-                listItems.forEach(item => {
-                    const text = item.textContent;
-                    const match = text.match(/^₹(\d+)(?: - (.*))?$/);
-                    if (match) {
-                        const expense = match[1];
-                        const note = match[2] || '';
-                        expenses[cat].push({ expense, note });
-                    }
-                });
-            });
-
-            const selectedDate = document.getElementById('date').value;
-        
-            let data = {
-                date: selectedDate,
-                expense: expenses
-            }
-            // Call your API
-            fetch(`/supplier/${user_id}/add_daily_expense`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(data),
-            })
-            .then(res => {
-                if (!res.ok) throw new Error('Network response was not ok');
-                return res.json();
-            })
-            .then(response => {
-                alert('Expenses submitted successfully!');
-                console.log(response);
-            })
-            .catch(err => {
-                console.error('Error submitting expenses:', err);
-                alert('Failed to submit expenses.');
-            });
-        }
-
         function addDailyExpense() {
             openModal('addDailyExpense');
             // setup add expense modal
-            setupModal();
+            setupExpenseModal();
         }
         
         function fetchDailyClients() {

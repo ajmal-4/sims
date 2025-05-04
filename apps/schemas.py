@@ -52,6 +52,15 @@ class UpdateSales(SaveSales, extra="allow"):
 class AddDailyExpense(BaseModel, extra="allow"):
     date: str = Field(..., description="Chosen date of the supply")
     expense: dict = Field(..., description="List of expenses")
+    total_amount: int = Field(..., description="Total expenditure")
 
 class GetDailyExpense(BaseModel, extra="allow"):
     date: str = Field(..., description="Chosen date of the supply")
+
+class UpdateLocation(BaseModel, extra="allow"):
+    client_id: str = Field(..., description=client_id_desc)
+    latitude: float = Field(..., description="Latitude of the location")
+    longitude: float = Field(..., description="Longitude of the location")
+
+class GetLocation(BaseModel, extra="allow"):
+    client_id: str = Field(..., description=client_id_desc)
