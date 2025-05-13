@@ -329,6 +329,12 @@
                         <strong>{{ client.name }}</strong> 
                         {{ client.place }} Route: {{ client.route_no }}, Status: {{ client.status }}
 
+                        <button class="view-client-location"
+                            style="color: rgb(0, 17, 255); margin-left: 10px;"
+                            data-client-id="{{ client.client_id }}">
+                            view Location
+                        </button>
+
                         <button class="supply-client-regular-btn" 
                             style="color: rgb(0, 17, 255); margin-left: 10px;"
                             data-client-id="{{ client.client_id }}">
@@ -718,6 +724,14 @@
                 
             </div>
         </div>
+
+        <div id="viewMap" class="modal">
+            <div class="modal-content">
+
+                <div id="view-map-container" style="margin-top: 20px;"></div>
+
+            </div>
+        </div>
     </div>
 
     <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
@@ -964,7 +978,7 @@
             const target = event.target;
 
             // Exclude the "Supply Regular" button from triggering showClientProfile
-            if (target.matches('.supply-client-regular-btn')) {
+            if (target.matches('.supply-client-regular-btn, .view-client-location')) {
                 return; // Stop execution if the button is clicked
             }
 
@@ -1196,6 +1210,46 @@
                     alert("An error occurred while deleting the client.");
                 });
             }
+        }
+
+        function viewMap(clientId) {
+            openModal('viewMap');
+
+            const mapContainer = document.getElementById('view-map-container');
+
+            fetch(`/supplier/${user_id}/get_location`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ client_id: clientId })
+            })
+            .then(response => {
+                if (response.ok) {
+                    return response.json();
+                } else {
+                    throw new Error('Failed to fetch the client');
+                }
+            })
+            .then(data => {
+                if (data && data.location) {
+                    mapContainer.innerHTML = `
+                        <iframe
+                            title="Client location"
+                            width="100%"
+                            height="300"
+                            style="border:0"
+                            src="https://www.google.com/maps?q=${data.location.latitude},${data.location.longitude}&output=embed"
+                            allowfullscreen>
+                        </iframe>
+                    `;
+                } else {
+                    mapContainer.innerHTML = `<p>No location added yet.</p>`;
+                }
+            })
+            .catch(err => {
+                console.error("Error fetching location:", err);
+                mapContainer.innerHTML = `<p>No location added yet.</p>`;
+            });
+
         }
 
         function updateMap(clientId) {
@@ -1769,9 +1823,15 @@
                                 Supply Regular
                                </button>`;
                         
+                        let mapButton = `<button class="view-client-location" 
+                                       style="color: rgb(0, 17, 255); margin-left: 10px;"
+                                       data-client-id="${client.client_id}">
+                                        view location
+                                       </button>` 
+                        
                         html += `<li>
                                     <strong>${client.name}</strong> ${client.place} Route: ${client.route_no} Status: ${client.status}
-                                    ${buttonHtml}
+                                    ${mapButton} ${buttonHtml}
                                 </li>`;
                     });
                     html += '</ul>';
@@ -1803,6 +1863,11 @@
             // Handle "Add Expense" button click
             if (target.id === "add-expense-btn") {
                 addDailyExpense();
+            }
+
+            if (target.classList.contains("view-client-location")) {
+                const clientId = target.getAttribute('data-client-id');
+                viewMap(clientId);
             }
         });
 
